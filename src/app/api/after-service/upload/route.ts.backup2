@@ -1,0 +1,214 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+/**
+ * AS 엑셀/CSV 업로드 API
+ * POST /api/after-service/upload
+ * 
+ * 컬럼 매핑:
+ * 날짜, 업체명, 고객명, 수거요청, 처리, 발송, 수거완료, 구매일자, 제품, 내용, 수리내역, 운송장번호, 연락처, 주소지
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { data } = body;
+
+    console.log("===== AS 업로드 시작 =====");
+    console.log("받은 데이터 개수:", data?.length);
+    console.log("첫 번째 데이터:", JSON.stringify(data?.[0], null, 2));
+
+    if (!Array.isArray(data) || data.length === 0) {
+      console.log("업로드 실패: 데이터가 없음");
+      return NextResponse.json(
+        { error: "업로드할 데이터가 없습니다." },
+        { status: 400 }
+      );
+    }
+
+    const results = {
+      total: data.length,
+      success: 0,
+      failed: 0,
+      errors: [] as string[],
+    };
+
+    // 티켓 번호 생성 함수
+    const generateTicketNumber = async () => {
+      const today = new Date();
+      const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+      
+      // 오늘 날짜의 마지막 티켓 번호 조회
+      const lastTicket = await prisma.afterService.findFirst({
+        where: {
+          ticketNumber: {
+            startsWith: `AS-${dateStr}`,
+          },
+        },
+        orderBy: {
+          ticketNumber: 'desc',
+        },
+      });
+
+      let seq = 1;
+      if (lastTicket) {
+        const lastSeq = parseInt(lastTicket.ticketNumber.split('-')[2]);
+        seq = lastSeq + 1;
+      }
+
+      return `AS-${dateStr}-${seq.toString().padStart(3, '0')}`;
+    };
+
+    // 다양한 날짜 형식 파싱 함수
+    const parseDate = (dateStr: string | null | undefined): Date | null => {
+      if (!dateStr || dateStr === '-' || dateStr === '' || dateStr.trim() === '') return null;
+      
+      const str = dateStr.trim();
+      const currentYear = 2025; // 데이터가 2025년 기준으로 고정
+      
+      // 1. "12월 26일", "1월 5일" 형식
+      const koreanMonthDayMatch = str.match(/(\d{1,2})월\s*(\d{1,2})일/);
+      if (koreanMonthDayMatch) {
+        const month = parseInt(koreanMonthDayMatch[1]) - 1;
+        const day = parseInt(koreanMonthDayMatch[2]);
+        return new Date(currentYear, month, day);
+      }
+      
+      // 2. "26년1월1일", "25년12월26일" 형식
+      const koreanFullMatch = str.match(/(\d{2,4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
+      if (koreanFullMatch) {
+        let year = parseInt(koreanFullMatch[1]);
+        if (year < 100) year = year + 2000;
+        const month = parseInt(koreanFullMatch[2]) - 1;
+        const day = parseInt(koreanFullMatch[3]);
+        return new Date(year, month, day);
+      }
+      
+      // 3. "12-26", "1-5" (월-일만 있는 경우) -> 2025년으로 고정
+      const shortMatch = str.match(/^(\d{1,2})[\-\/\.](\d{1,2})$/);
+      if (shortMatch) {
+        const month = parseInt(shortMatch[1]) - 1;
+        const day = parseInt(shortMatch[2]);
+        return new Date(currentYear, month, day);
+      }
+      
+      // 4. 일반 날짜 형식: YYYY.MM.DD, YYYY-MM-DD, YYYY/MM/DD, YY.MM.DD, YY-MM-DD
+      const cleaned = str.replace(/[\/\-\.\s]/g, '-');
+      const parts = cleaned.split('-').filter(p => p.length > 0);
+      
+      if (parts.length >= 3) {
+        let year = parseInt(parts[0]);
+        const month = parseInt(parts[1]) - 1;
+        const day = parseInt(parts[2]);
+        
+        // 2자리 연도 처리
+        if (year < 100) {
+          year = year + 2000;
+        }
+        
+        const date = new Date(year, month, day);
+        if (!isNaN(date.getTime())) {
+          return date;
+        }
+      }
+      
+      // 5. 숫자만 있는 경우 (ex: "1226" -> 12월 26일)
+      if (/^\d{3,4}$/.test(str)) {
+        const num = str.padStart(4, '0');
+        const month = parseInt(num.slice(0, 2)) - 1;
+        const day = parseInt(num.slice(2, 4));
+        if (month >= 0 && month < 12 && day >= 1 && day <= 31) {
+          return new Date(currentYear, month, day);
+        }
+      }
+      
+      return null;
+    };
+
+    // 데이터 처리
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      
+      try {
+        // 필수 필드 검증 - 헤더 키 정규화 (공백, BOM 제거)
+        const normalizedRow: any = {};
+        Object.keys(row).forEach(key => {
+          const normalizedKey = key.replace(/^\uFEFF/, '').trim();
+          normalizedRow[normalizedKey] = row[key];
+        });
+        
+        console.log(`행 ${i + 1} 정규화된 키:`, Object.keys(normalizedRow));
+        
+        const customerName = normalizedRow['고객명'] || normalizedRow['customerName'] || '';
+        const customerPhone = normalizedRow['연락처'] || normalizedRow['customerPhone'] || normalizedRow['phone'] || '';
+        
+        console.log(`행 ${i + 1}: 고객명="${customerName}", 연락처="${customerPhone}"`);
+        
+        if (!customerName && !customerPhone) {
+          results.errors.push(`행 ${i + 1}: 고객명 또는 연락처가 필요합니다.`);
+          results.failed++;
+          continue;
+        }
+
+        // 티켓 번호 생성
+        const ticketNumber = await generateTicketNumber();
+        console.log(`행 ${i + 1}: 생성된 티켓번호 = ${ticketNumber}`);
+
+        // AS 데이터 생성
+        await prisma.afterService.create({
+          data: {
+            ticketNumber,
+            // 기본 정보
+            serviceDate: parseDate(normalizedRow['날짜'] || normalizedRow['date']) || new Date(),
+            companyName: normalizedRow['업체명'] || normalizedRow['company'] || null,
+            
+            // 고객 정보
+            customerName: customerName || '-',
+            customerPhone: customerPhone || '-',
+            customerAddress: normalizedRow['주소지'] || normalizedRow['address'] || null,
+            
+            // 수거/배송 일정
+            pickupRequestDate: parseDate(normalizedRow['수거요청'] || normalizedRow['pickupRequest']),
+            processDate: parseDate(normalizedRow['처리'] || normalizedRow['process']),
+            shipDate: parseDate(normalizedRow['발송'] || normalizedRow['ship']),
+            pickupCompleteDate: parseDate(normalizedRow['수거완료'] || normalizedRow['pickupComplete']),
+            
+            // 제품 정보
+            productName: normalizedRow['제품'] || normalizedRow['product'] || '상품',
+            purchaseDate: parseDate(normalizedRow['구매일자'] || normalizedRow['purchaseDate']),
+            
+            // 증상/문제
+            issueTitle: normalizedRow['내용'] || normalizedRow['content'] || normalizedRow['issue'] || '',
+            issueDescription: normalizedRow['내용'] || normalizedRow['content'] || normalizedRow['issue'] || '',
+            repairContent: normalizedRow['수리 내역'] || normalizedRow['수리내역'] || normalizedRow['repair'] || null,
+            
+            // 배송 정보
+            trackingNumber: normalizedRow['운송장번호'] || normalizedRow['trackingNumber'] || null,
+            
+            // 기본값
+            status: 'RECEIVED',
+            priority: 'NORMAL',
+            issueType: 'OTHER',
+          },
+        });
+
+        console.log(`행 ${i + 1}: 저장 성공`);
+        results.success++;
+      } catch (error) {
+        console.error(`행 ${i + 1} 처리 오류:`, error);
+        results.errors.push(`행 ${i + 1}: 데이터 저장 실패 - ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+        results.failed++;
+      }
+    }
+
+    return NextResponse.json({
+      message: `${results.success}건 업로드 완료, ${results.failed}건 실패`,
+      ...results,
+    });
+  } catch (error) {
+    console.error("AS 업로드 오류:", error);
+    return NextResponse.json(
+      { error: "AS 데이터 업로드 실패" },
+      { status: 500 }
+    );
+  }
+}

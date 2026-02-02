@@ -1,0 +1,40 @@
+model Order {
+  id              String      @id @default(cuid())
+  customerId      String
+  customer        Customer    @relation(fields: [customerId], references: [id])
+  
+  // 기본 주문 정보
+  orderDate       DateTime    @default(now())
+  totalAmount     Decimal
+  status          String      @default("PENDING") // "PENDING", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"
+  
+  // 엑셀 추가 필드
+  customerPhone   String?     // 주의인 연락처
+  customerMobile  String?     // 주의인 휴대전화
+  shippingAddr    String?     // 주의인 이동통신
+  notes           String?     // 주의사항
+  
+  productName     String?     // 상품명
+  giftOption      String?     // 선물 및 수증  
+  quantity        Int         @default(1) // 수량
+  
+  // 금액 상세
+  basePrice       Decimal?    // 기본 금액
+  additionalFee   Decimal?    // 추가금
+  shippingFee     Decimal?    // 배송비
+  
+  // 배송 정보
+  shippingMethod  String?     // 배송 방법
+  recipientName   String?     // 받는이 (if different from customer)
+  recipientPhone  String?     // 받는이 연락처
+  shippingStatus  String?     // 배송 상태
+  
+  // 관리 정보
+  staffName       String?     // 직원명
+  memo            String?     // 메모
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  items           OrderItem[]
+}

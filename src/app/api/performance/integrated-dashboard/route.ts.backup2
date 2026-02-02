@@ -1,0 +1,412 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+// 공급가 단가 (쉴드 1개당)
+const SUPPLY_PRICE_PER_UNIT = 92727.2; // 기본 단가 (사용 안 함)
+// 협력사별 공급가 단가
+const SUPPLY_PRICE_BY_PARTNER: Record<string, number> = {
+  "본사": 45000,
+  "로켓그로스": 92727.2,
+  "그로트": 99000,
+  "스몰닷": 99000,
+  "해피포즈": 99000,
+};
+// 원가 (쉴드 1개당)
+const COST_PER_UNIT = 42000;
+// 부가세율
+const VAT_RATE = 0.1;
+// 수수료 (현재 0)
+const COMMISSION_RATE = 0;
+
+// 협력사 목록 (고정)
+const PARTNERS = ["본사", "로켓그로스", "그로트", "스몰닷", "해피포즈"];
+
+export async function GET(request: Request) {
+  try {
+    // URL 파라미터에서 날짜 범위 가져오기
+    const { searchParams } = new URL(request.url);
+    const startDateParam = searchParams.get('startDate');
+    const endDateParam = searchParams.get('endDate');
+    const kpiSettingsParam = searchParams.get('kpiSettings');
+
+    // KPI 설정 파싱
+    let supplyPriceByPartner = SUPPLY_PRICE_BY_PARTNER;
+    let costPerUnit = COST_PER_UNIT;
+    let vatRate = VAT_RATE;
+    let commissionRate = COMMISSION_RATE;
+
+    if (kpiSettingsParam) {
+      try {
+        const kpiSettings = JSON.parse(kpiSettingsParam);
+        
+        // 협력사별 공급가 및 원가 설정 적용
+        if (kpiSettings.partners) {
+          supplyPriceByPartner = {};
+          Object.entries(kpiSettings.partners).forEach(([partner, config]: [string, any]) => {
+            if (config.enabled) {
+              supplyPriceByPartner[partner] = config.supplyPrice;
+              // 협력사별 원가는 동일하게 적용 (첫 번째 값 사용)
+              if (config.costPrice) {
+                costPerUnit = config.costPrice;
+              }
+            }
+          });
+        }
+
+        // 세율 및 수수료율 설정 적용
+        if (kpiSettings.vatRate !== undefined) {
+          vatRate = kpiSettings.vatRate;
+        }
+        if (kpiSettings.commissionRate !== undefined) {
+          commissionRate = kpiSettings.commissionRate;
+        }
+      } catch (e) {
+        console.error('Failed to parse KPI settings:', e);
+      }
+    }
+
+    // 날짜 범위 설정 (파라미터가 없으면 오늘 기준)
+    let startDate: Date;
+    let endDate: Date;
+
+    if (startDateParam && endDateParam) {
+      startDate = new Date(startDateParam);
+      endDate = new Date(endDateParam);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      // 기본값: 오늘
+      startDate = new Date();
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date();
+      endDate.setHours(23, 59, 59, 999);
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // 검색 종료일 기준으로 월 계산
+    const searchEndMonth = endDate.getMonth();
+    const searchEndYear = endDate.getFullYear();
+    
+    // 검색 종료일이 속한 달의 1일
+    const monthStart = new Date(searchEndYear, searchEndMonth, 1);
+    
+    // 지난 달 1일 ~ 말일 (검색 종료일 기준)
+    const lastMonthStart = new Date(searchEndYear, searchEndMonth - 1, 1);
+    const lastMonthEnd = new Date(searchEndYear, searchEndMonth, 0, 23, 59, 59, 999);
+    
+    // 검색 종료일이 속한 연도의 1월 1일
+    const yearStart = new Date(searchEndYear, 0, 1);
+    
+    // =====================================================
+    // 1. 선택된 날짜 범위 통계 (협력사별)
+    // =====================================================
+    const todayOrders = await prisma.order.findMany({
+      where: {
+        orderDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      select: {
+        orderSource: true,
+        quantity: true,
+        basePrice: true,
+        shippingFee: true,
+        productInfo: true,
+      },
+    });
+
+    // 오늘 협력사별 집계
+    const todayStats: Record<string, { count: number; quantity: number; basePrice: number; shippingFee: number }> = {};
+    PARTNERS.forEach(p => {
+      todayStats[p] = { count: 0, quantity: 0, basePrice: 0, shippingFee: 0 };
+    });
+
+    todayOrders.forEach(order => {
+      const source = PARTNERS.includes(order.orderSource || "") ? order.orderSource! : "본사";
+      todayStats[source].count += 1;
+      todayStats[source].quantity += order.quantity || 1;
+      todayStats[source].basePrice += Number(order.basePrice) || 0;
+      todayStats[source].shippingFee += Number(order.shippingFee) || 0;
+    });
+
+    // =====================================================
+    // 2. 1일~선택 종료일(이번 달 누계) 통계
+    // =====================================================
+    const monthOrders = await prisma.order.findMany({
+      where: {
+        orderDate: {
+          gte: monthStart,
+          lte: endDate,
+        },
+      },
+      select: {
+        orderSource: true,
+        quantity: true,
+        basePrice: true,
+        shippingFee: true,
+        productInfo: true,
+      },
+    });
+
+    const monthStats: Record<string, { count: number; quantity: number; basePrice: number; shippingFee: number }> = {};
+    PARTNERS.forEach(p => {
+      monthStats[p] = { count: 0, quantity: 0, basePrice: 0, shippingFee: 0 };
+    });
+
+    monthOrders.forEach(order => {
+      const source = PARTNERS.includes(order.orderSource || "") ? order.orderSource! : "본사";
+      monthStats[source].count += 1;
+      monthStats[source].quantity += order.quantity || 1;
+      monthStats[source].basePrice += Number(order.basePrice) || 0;
+      monthStats[source].shippingFee += Number(order.shippingFee) || 0;
+    });
+
+    // =====================================================
+    // 3. 전월 통계
+    // =====================================================
+    const lastMonthOrders = await prisma.order.findMany({
+      where: {
+        orderDate: {
+          gte: lastMonthStart,
+          lte: lastMonthEnd,
+        },
+      },
+      select: {
+        orderSource: true,
+        quantity: true,
+        basePrice: true,
+        shippingFee: true,
+        productInfo: true,
+      },
+    });
+
+    let lastMonthTotalQuantity = 0;
+    let lastMonthTotalBasePrice = 0;
+    let lastMonthTotalShippingFee = 0;
+
+    lastMonthOrders.forEach(order => {
+      lastMonthTotalQuantity += order.quantity || 1;
+      lastMonthTotalBasePrice += Number(order.basePrice) || 0;
+      lastMonthTotalShippingFee += Number(order.shippingFee) || 0;
+    });
+
+    // =====================================================
+    // 4. 2026년 누적 통계
+    // =====================================================
+    const yearOrders = await prisma.order.findMany({
+      where: {
+        orderDate: {
+          gte: yearStart,
+        },
+      },
+      select: {
+        orderSource: true,
+        quantity: true,
+        basePrice: true,
+        shippingFee: true,
+        productInfo: true,
+      },
+    });
+
+    const yearStats: Record<string, { count: number; quantity: number; basePrice: number; shippingFee: number }> = {};
+    PARTNERS.forEach(p => {
+      yearStats[p] = { count: 0, quantity: 0, basePrice: 0, shippingFee: 0 };
+    });
+
+    // 상품별 판매수량 집계 (2026년 누적)
+    const productSales: Record<string, number> = {
+      "쉴드4": 0,
+      "쉴드유선전용": 0,
+      "쉴드미니": 0,
+      "스탠드": 0,
+      "기타": 0,
+    };
+
+    yearOrders.forEach(order => {
+      const source = PARTNERS.includes(order.orderSource || "") ? order.orderSource! : "본사";
+      yearStats[source].count += 1;
+      yearStats[source].quantity += order.quantity || 1;
+      yearStats[source].basePrice += Number(order.basePrice) || 0;
+      yearStats[source].shippingFee += Number(order.shippingFee) || 0;
+
+      // 상품명에서 상품 종류 추출
+      const productInfo = order.productInfo?.toLowerCase() || "";
+      const qty = order.quantity || 1;
+      
+      if (productInfo.includes("쉴드4") || productInfo.includes("shield4")) {
+        productSales["쉴드4"] += qty;
+      } else if (productInfo.includes("유선") || productInfo.includes("wired")) {
+        productSales["쉴드유선전용"] += qty;
+      } else if (productInfo.includes("미니") || productInfo.includes("mini")) {
+        productSales["쉴드미니"] += qty;
+      } else if (productInfo.includes("스탠드") || productInfo.includes("stand")) {
+        productSales["스탠드"] += qty;
+      } else {
+        productSales["기타"] += qty;
+      }
+    });
+
+    // =====================================================
+    // 금액 계산 함수
+    // =====================================================
+    const calculateFinancials = (quantity: number, partner: string = "본사") => {
+      const pricePerUnit = supplyPriceByPartner[partner] || supplyPriceByPartner["본사"] || 45000;
+      const supplyPrice = quantity * pricePerUnit; // 공급가
+      const vat = supplyPrice * vatRate; // 부가세
+      const totalWithVat = supplyPrice + vat; // 합계 (부가세 포함)
+      const cost = quantity * costPerUnit; // 원가
+      const commission = supplyPrice * commissionRate; // 수수료
+      const margin = supplyPrice - cost - commission; // 마진 (부가세 제외)
+
+      return {
+        supplyPrice: Math.round(supplyPrice),
+        vat: Math.round(vat),
+        totalWithVat: Math.round(totalWithVat),
+        cost: Math.round(cost),
+        commission: Math.round(commission),
+        margin: Math.round(margin),
+      };
+    };
+
+    // =====================================================
+    // 응답 데이터 구성
+    // =====================================================
+    
+    // 오늘 통계
+    const todayData = PARTNERS.map(partner => {
+      const stats = todayStats[partner];
+      const financials = calculateFinancials(stats.quantity, partner);
+      return {
+        partner,
+        count: stats.count,
+        quantity: stats.quantity,
+        basePrice: stats.basePrice,
+        shippingFee: stats.shippingFee,
+        ...financials,
+      };
+    });
+
+    const todayTotals = {
+      count: todayData.reduce((sum, d) => sum + d.count, 0),
+      quantity: todayData.reduce((sum, d) => sum + d.quantity, 0),
+      basePrice: todayData.reduce((sum, d) => sum + d.basePrice, 0),
+      shippingFee: todayData.reduce((sum, d) => sum + d.shippingFee, 0),
+      supplyPrice: todayData.reduce((sum, d) => sum + d.supplyPrice, 0),
+      vat: todayData.reduce((sum, d) => sum + d.vat, 0),
+      totalWithVat: todayData.reduce((sum, d) => sum + d.totalWithVat, 0),
+      cost: todayData.reduce((sum, d) => sum + d.cost, 0),
+      commission: todayData.reduce((sum, d) => sum + d.commission, 0),
+      margin: todayData.reduce((sum, d) => sum + d.margin, 0),
+    };
+
+    // 이번 달 누계
+    const monthData = PARTNERS.map(partner => {
+      const stats = monthStats[partner];
+      const financials = calculateFinancials(stats.quantity, partner);
+      return {
+        partner,
+        count: stats.count,
+        quantity: stats.quantity,
+        basePrice: stats.basePrice,
+        shippingFee: stats.shippingFee,
+        ...financials,
+      };
+    });
+
+    const monthTotals = {
+      count: monthData.reduce((sum, d) => sum + d.count, 0),
+      quantity: monthData.reduce((sum, d) => sum + d.quantity, 0),
+      basePrice: monthData.reduce((sum, d) => sum + d.basePrice, 0),
+      shippingFee: monthData.reduce((sum, d) => sum + d.shippingFee, 0),
+      supplyPrice: monthData.reduce((sum, d) => sum + d.supplyPrice, 0),
+      vat: monthData.reduce((sum, d) => sum + d.vat, 0),
+      totalWithVat: monthData.reduce((sum, d) => sum + d.totalWithVat, 0),
+      cost: monthData.reduce((sum, d) => sum + d.cost, 0),
+      commission: monthData.reduce((sum, d) => sum + d.commission, 0),
+      margin: monthData.reduce((sum, d) => sum + d.margin, 0),
+    };
+
+    // 전월 통계
+    const lastMonthFinancials = calculateFinancials(lastMonthTotalQuantity);
+    const lastMonthData = {
+      count: lastMonthOrders.length,
+      quantity: lastMonthTotalQuantity,
+      basePrice: lastMonthTotalBasePrice,
+      shippingFee: lastMonthTotalShippingFee,
+      ...lastMonthFinancials,
+    };
+
+    // 2026년 누적
+    const yearData = PARTNERS.map(partner => {
+      const stats = yearStats[partner];
+      const financials = calculateFinancials(stats.quantity, partner);
+      return {
+        partner,
+        count: stats.count,
+        quantity: stats.quantity,
+        basePrice: stats.basePrice,
+        shippingFee: stats.shippingFee,
+        ...financials,
+      };
+    });
+
+    const yearTotals = {
+      count: yearData.reduce((sum, d) => sum + d.count, 0),
+      quantity: yearData.reduce((sum, d) => sum + d.quantity, 0),
+      basePrice: yearData.reduce((sum, d) => sum + d.basePrice, 0),
+      shippingFee: yearData.reduce((sum, d) => sum + d.shippingFee, 0),
+      supplyPrice: yearData.reduce((sum, d) => sum + d.supplyPrice, 0),
+      vat: yearData.reduce((sum, d) => sum + d.vat, 0),
+      totalWithVat: yearData.reduce((sum, d) => sum + d.totalWithVat, 0),
+      cost: yearData.reduce((sum, d) => sum + d.cost, 0),
+      commission: yearData.reduce((sum, d) => sum + d.commission, 0),
+      margin: yearData.reduce((sum, d) => sum + d.margin, 0),
+    };
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        // 날짜 범위 정보
+        dateRange: {
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0],
+          year: searchEndYear, // 검색 종료일의 연도 추가
+        },
+        // 선택 기간 통계
+        today: {
+          byPartner: todayData,
+          totals: todayTotals,
+        },
+        // 1일~현재 (이번 달 누계)
+        month: {
+          byPartner: monthData,
+          totals: monthTotals,
+        },
+        // 전월 통계
+        lastMonth: lastMonthData,
+        // 2026년 누적
+        year: {
+          byPartner: yearData,
+          totals: yearTotals,
+          productSales,
+        },
+        // 계산 단가 정보
+        priceInfo: {
+          supplyPricePerUnit: Object.values(supplyPriceByPartner)[0] || SUPPLY_PRICE_PER_UNIT,
+          costPerUnit: costPerUnit,
+          vatRate: vatRate,
+          commissionRate: commissionRate,
+          supplyPriceByPartner: supplyPriceByPartner, // 협력사별 공급가
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Integrated dashboard error:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to fetch dashboard data" },
+      { status: 500 }
+    );
+  }
+}

@@ -1,0 +1,739 @@
+﻿"use server";
+
+import { prisma } from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
+
+// ============================================================================
+// Types
+// ============================================================================
+
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: {
+    code: string;
+    message: string;
+  };
+}
+
+interface TrashItem {
+  id: string;
+  originalId: string;
+  originalTable: string;
+  originalData: any;
+  deletedBy: string | null;
+  deletedByName: string | null;
+  deleteReason: string | null;
+  displayTitle: string | null;
+  displayInfo: string | null;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+// ?뚯씠釉붾퀎 ?쒖떆 ?뺣낫 ?앹꽦 ?⑥닔
+function getDisplayInfo(tableName: string, data: any): { title: string; info: string } {
+  switch (tableName) {
+    case "Order":
+      return {
+        title: data.orderNumber || `二쇰Ц ${data.id?.slice(0, 8)}`,
+        info: `${data.recipientName || data.customerName || "怨좉컼"} | ${data.productInfo || data.productName || "?곹뭹"} | ${data.totalAmount ? `??{Number(data.totalAmount).toLocaleString()}` : ""}`
+      };
+    case "AfterService":
+      return {
+        title: data.asNumber || data.ticketNumber || `AS ${data.id?.slice(0, 8)}`,
+        info: `${data.customerName || "怨좉컼"} | ${data.productName || "?쒗뭹"} | ${data.type || "?좏삎?놁쓬"}`
+      };
+    case "MallOrder":
+      return {
+        title: data.orderNumber || `紐곗＜臾?${data.id?.slice(0, 8)}`,
+        info: `${data.customerName || "怨좉컼"} | ??{Number(data.totalAmount || 0).toLocaleString()}`
+      };
+    default:
+      return {
+        title: `${tableName} ${data.id?.slice(0, 8)}`,
+        info: JSON.stringify(data).slice(0, 100)
+      };
+  }
+}
+
+// ============================================================================
+// ?댁??듭쑝濡??대룞 (??젣 ???
+// ============================================================================
+
+/**
+ * 二쇰Ц???댁??듭쑝濡??대룞
+ */
+export async function moveOrderToTrash(
+  orderId: string,
+  userId?: string,
+  userName?: string,
+  reason?: string
+): Promise<ApiResponse<{ moved: boolean }>> {
+  if (!orderId) {
+    return {
+      success: false,
+      error: { code: "INVALID_ID", message: "二쇰Ц ID媛 ?꾩슂?⑸땲?? }
+    };
+  }
+
+  try {
+    // 1. ?먮낯 二쇰Ц ?곗씠??議고쉶
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true }
+    });
+
+    if (!order) {
+      return {
+        success: false,
+        error: { code: "NOT_FOUND", message: "二쇰Ц??李얠쓣 ???놁뒿?덈떎" }
+      };
+    }
+
+    // 2. ?댁??듭뿉 ???(30????留뚮즺)
+    const displayInfo = getDisplayInfo("Order", order);
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+
+    await prisma.trashbin.create({
+      data: {
+        originalId: order.id,
+        originalTable: "Order",
+        originalData: JSON.parse(JSON.stringify(order)),
+        deletedBy: userId,
+        deletedByName: userName,
+        deleteReason: reason,
+        displayTitle: displayInfo.title,
+        displayInfo: displayInfo.info,
+        expiresAt
+      }
+    });
+
+    // 3. ?먮낯 ??젣 (OrderItem? Cascade濡??먮룞 ??젣)
+    await prisma.order.delete({
+      where: { id: orderId }
+    });
+
+    revalidatePath("/dashboard/orders");
+    revalidatePath("/dashboard/data/trash");
+
+    return { success: true, data: { moved: true } };
+  } catch (error) {
+    console.error("[moveOrderToTrash] Error:", error);
+    return {
+      success: false,
+      error: { code: "MOVE_FAILED", message: "?댁????대룞???ㅽ뙣?덉뒿?덈떎" }
+    };
+  }
+}
+
+/**
+ * AS瑜??댁??듭쑝濡??대룞
+ */
+export async function moveAfterServiceToTrash(
+  asId: string,
+  userId?: string,
+  userName?: string,
+  reason?: string
+): Promise<ApiResponse<{ moved: boolean }>> {
+  if (!asId) {
+    return {
+      success: false,
+      error: { code: "INVALID_ID", message: "AS ID媛 ?꾩슂?⑸땲?? }
+    };
+  }
+
+  try {
+    // 1. ?먮낯 AS ?곗씠??議고쉶
+    const asItem = await prisma.afterservice.findUnique({
+      where: { id: asId }
+    });
+
+    if (!asItem) {
+      return {
+        success: false,
+        error: { code: "NOT_FOUND", message: "AS瑜?李얠쓣 ???놁뒿?덈떎" }
+      };
+    }
+
+    // 2. ?댁??듭뿉 ???
+    const displayInfo = getDisplayInfo("AfterService", asItem);
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+
+    await prisma.trashbin.create({
+      data: {
+        originalId: asItem.id,
+        originalTable: "AfterService",
+        originalData: JSON.parse(JSON.stringify(asItem)),
+        deletedBy: userId,
+        deletedByName: userName,
+        deleteReason: reason,
+        displayTitle: displayInfo.title,
+        displayInfo: displayInfo.info,
+        expiresAt
+      }
+    });
+
+    // 3. ?먮낯 ??젣
+    await prisma.afterservice.delete({
+      where: { id: asId }
+    });
+
+    revalidatePath("/dashboard/after-service");
+    revalidatePath("/dashboard/data/trash");
+
+    return { success: true, data: { moved: true } };
+  } catch (error) {
+    console.error("[moveAfterServiceToTrash] Error:", error);
+    return {
+      success: false,
+      error: { code: "MOVE_FAILED", message: "?댁????대룞???ㅽ뙣?덉뒿?덈떎" }
+    };
+  }
+}
+
+/**
+ * ?щ윭 二쇰Ц???쒕쾲???댁??듭쑝濡??대룞
+ */
+export async function moveMultipleOrdersToTrash(
+  orderIds: string[],
+  userId?: string,
+  userName?: string,
+  reason?: string
+): Promise<ApiResponse<{ movedCount: number }>> {
+  if (!orderIds || orderIds.length === 0) {
+    return {
+      success: false,
+      error: { code: "INVALID_IDS", message: "二쇰Ц ID 紐⑸줉???꾩슂?⑸땲?? }
+    };
+  }
+
+  try {
+    let movedCount = 0;
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+
+    for (const orderId of orderIds) {
+      try {
+        const order = await prisma.order.findUnique({
+          where: { id: orderId },
+          include: { items: true }
+        });
+
+        if (order) {
+          const displayInfo = getDisplayInfo("Order", order);
+          
+          await prisma.trashbin.create({
+            data: {
+              originalId: order.id,
+              originalTable: "Order",
+              originalData: JSON.parse(JSON.stringify(order)),
+              deletedBy: userId,
+              deletedByName: userName,
+              deleteReason: reason,
+              displayTitle: displayInfo.title,
+              displayInfo: displayInfo.info,
+              expiresAt
+            }
+          });
+
+          await prisma.order.delete({
+            where: { id: orderId }
+          });
+
+          movedCount++;
+        }
+      } catch (err) {
+        console.error(`[moveMultipleOrdersToTrash] Error moving order ${orderId}:`, err);
+      }
+    }
+
+    revalidatePath("/dashboard/orders");
+    revalidatePath("/dashboard/data/trash");
+
+    return { success: true, data: { movedCount } };
+  } catch (error) {
+    console.error("[moveMultipleOrdersToTrash] Error:", error);
+    return {
+      success: false,
+      error: { code: "MOVE_FAILED", message: "?댁????대룞???ㅽ뙣?덉뒿?덈떎" }
+    };
+  }
+}
+
+/**
+ * 紐⑤뱺 二쇰Ц???댁??듭쑝濡??대룞
+ */
+export async function moveAllOrdersToTrash(
+  userId?: string,
+  userName?: string,
+  reason?: string
+): Promise<ApiResponse<{ movedCount: number }>> {
+  try {
+    const orders = await prisma.order.findMany({
+      include: { items: true }
+    });
+
+    let movedCount = 0;
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+
+    for (const order of orders) {
+      try {
+        const displayInfo = getDisplayInfo("Order", order);
+        
+        await prisma.trashbin.create({
+          data: {
+            originalId: order.id,
+            originalTable: "Order",
+            originalData: JSON.parse(JSON.stringify(order)),
+            deletedBy: userId,
+            deletedByName: userName,
+            deleteReason: reason || "?꾩껜 ??젣",
+            displayTitle: displayInfo.title,
+            displayInfo: displayInfo.info,
+            expiresAt
+          }
+        });
+
+        movedCount++;
+      } catch (err) {
+        console.error(`[moveAllOrdersToTrash] Error creating trash for order ${order.id}:`, err);
+      }
+    }
+
+    // ?먮낯 ?꾩껜 ??젣
+    await prisma.order.deleteMany({});
+
+    revalidatePath("/dashboard/orders");
+    revalidatePath("/dashboard/data/trash");
+
+    return { success: true, data: { movedCount } };
+  } catch (error) {
+    console.error("[moveAllOrdersToTrash] Error:", error);
+    return {
+      success: false,
+      error: { code: "MOVE_FAILED", message: "?댁????대룞???ㅽ뙣?덉뒿?덈떎" }
+    };
+  }
+}
+
+/**
+ * 紐⑤뱺 AS瑜??댁??듭쑝濡??대룞
+ */
+export async function moveAllASToTrash(
+  userId?: string,
+  userName?: string,
+  reason?: string
+): Promise<ApiResponse<{ movedCount: number }>> {
+  try {
+    const asItems = await prisma.afterService.findMany();
+
+    let movedCount = 0;
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+
+    for (const asItem of asItems) {
+      try {
+        const displayInfo = getDisplayInfo("AfterService", asItem);
+        
+        await prisma.trashbin.create({
+          data: {
+            originalId: asItem.id,
+            originalTable: "AfterService",
+            originalData: JSON.parse(JSON.stringify(asItem)),
+            deletedBy: userId,
+            deletedByName: userName,
+            deleteReason: reason || "?꾩껜 ??젣",
+            displayTitle: displayInfo.title,
+            displayInfo: displayInfo.info,
+            expiresAt
+          }
+        });
+
+        movedCount++;
+      } catch (err) {
+        console.error(`[moveAllASToTrash] Error creating trash for AS ${asItem.id}:`, err);
+      }
+    }
+
+    // ?먮낯 ?꾩껜 ??젣
+    await prisma.afterService.deleteMany({});
+
+    revalidatePath("/dashboard/after-service");
+    revalidatePath("/dashboard/data/trash");
+
+    return { success: true, data: { movedCount } };
+  } catch (error) {
+    console.error("[moveAllASToTrash] Error:", error);
+    return {
+      success: false,
+      error: { code: "MOVE_FAILED", message: "?댁????대룞???ㅽ뙣?덉뒿?덈떎" }
+    };
+  }
+}
+
+// ============================================================================
+// ?댁???議고쉶
+// ============================================================================
+
+/**
+ * ?댁???紐⑸줉 議고쉶
+ */
+export async function getTrashItems(
+  tableFilter?: string
+): Promise<ApiResponse<TrashItem[]>> {
+  try {
+    const items = await prisma.trashbin.findMany({
+      where: tableFilter ? { originalTable: tableFilter } : undefined,
+      orderBy: { createdAt: "desc" }
+    });
+
+    return { success: true, data: items as TrashItem[] };
+  } catch (error) {
+    console.error("[getTrashItems] Error:", error);
+    return {
+      success: false,
+      error: { code: "FETCH_FAILED", message: "?댁???議고쉶???ㅽ뙣?덉뒿?덈떎" }
+    };
+  }
+}
+
+/**
+ * ?댁????듦퀎 議고쉶
+ */
+export async function getTrashStats(): Promise<ApiResponse<{
+  total: number;
+  byTable: Record<string, number>;
+  expiringToday: number;
+  expiringThisWeek: number;
+}>> {
+  try {
+    const items = await prisma.trashbin.findMany({
+      select: { originalTable: true, expiresAt: true }
+    });
+
+    const now = new Date();
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
+    
+    const endOfWeek = new Date(now);
+    endOfWeek.setDate(endOfWeek.getDate() + 7);
+
+    const byTable: Record<string, number> = {};
+    let expiringToday = 0;
+    let expiringThisWeek = 0;
+
+    for (const item of items) {
+      byTable[item.originalTable] = (byTable[item.originalTable] || 0) + 1;
+      
+      if (item.expiresAt <= endOfToday) {
+        expiringToday++;
+      }
+      if (item.expiresAt <= endOfWeek) {
+        expiringThisWeek++;
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        total: items.length,
+        byTable,
+        expiringToday,
+        expiringThisWeek
+      }
+    };
+  } catch (error) {
+    console.error("[getTrashStats] Error:", error);
+    return {
+      success: false,
+      error: { code: "FETCH_FAILED", message: "?댁????듦퀎 議고쉶???ㅽ뙣?덉뒿?덈떎" }
+    };
+  }
+}
+
+// ============================================================================
+// 蹂듦뎄
+// ============================================================================
+
+/**
+ * ?댁??듭뿉??二쇰Ц 蹂듦뎄
+ */
+export async function restoreOrder(
+  trashId: string
+): Promise<ApiResponse<{ restored: boolean; orderId: string }>> {
+  if (!trashId) {
+    return {
+      success: false,
+      error: { code: "INVALID_ID", message: "?댁???ID媛 ?꾩슂?⑸땲?? }
+    };
+  }
+
+  try {
+    const trashItem = await prisma.trashbin.findUnique({
+      where: { id: trashId }
+    });
+
+    if (!trashItem || trashItem.originalTable !== "Order") {
+      return {
+        success: false,
+        error: { code: "NOT_FOUND", message: "蹂듦뎄??二쇰Ц??李얠쓣 ???놁뒿?덈떎" }
+      };
+    }
+
+    const originalData = trashItem.originalData as any;
+    
+    // items 遺꾨━ (蹂꾨룄 ?뚯씠釉?
+    const { items, customer, afterServices, ...orderData } = originalData;
+
+    // Decimal ?꾨뱶 蹂??
+    const cleanOrderData = {
+      ...orderData,
+      totalAmount: orderData.totalAmount ? parseFloat(String(orderData.totalAmount)) : 0,
+      shippingFee: orderData.shippingFee ? parseFloat(String(orderData.shippingFee)) : null,
+      basePrice: orderData.basePrice ? parseFloat(String(orderData.basePrice)) : null,
+      additionalFee: orderData.additionalFee ? parseFloat(String(orderData.additionalFee)) : null,
+    };
+
+    // ??ID濡?二쇰Ц ?앹꽦 (?먮낯 ID 異⑸룎 諛⑹?)
+    const newOrder = await prisma.order.create({
+      data: {
+        ...cleanOrderData,
+        id: undefined, // ??ID ?앹꽦
+        createdAt: new Date(orderData.createdAt),
+        updatedAt: new Date(),
+      }
+    });
+
+    // OrderItem 蹂듦뎄 (?덈떎硫?
+    if (items && Array.isArray(items) && items.length > 0) {
+      for (const item of items) {
+        try {
+          await prisma.orderItem.create({
+            data: {
+              orderId: newOrder.id,
+              productId: item.productId,
+              quantity: item.quantity,
+              price: parseFloat(String(item.price))
+            }
+          });
+        } catch (itemErr) {
+          console.error("[restoreOrder] Error restoring order item:", itemErr);
+        }
+      }
+    }
+
+    // ?댁??듭뿉????젣
+    await prisma.trashbin.delete({
+      where: { id: trashId }
+    });
+
+    revalidatePath("/dashboard/orders");
+    revalidatePath("/dashboard/data/trash");
+
+    return { success: true, data: { restored: true, orderId: newOrder.id } };
+  } catch (error) {
+    console.error("[restoreOrder] Error:", error);
+    return {
+      success: false,
+      error: { code: "RESTORE_FAILED", message: "二쇰Ц 蹂듦뎄???ㅽ뙣?덉뒿?덈떎" }
+    };
+  }
+}
+
+/**
+ * ?댁??듭뿉??AS 蹂듦뎄
+ */
+export async function restoreAfterService(
+  trashId: string
+): Promise<ApiResponse<{ restored: boolean; asId: string }>> {
+  if (!trashId) {
+    return {
+      success: false,
+      error: { code: "INVALID_ID", message: "?댁???ID媛 ?꾩슂?⑸땲?? }
+    };
+  }
+
+  try {
+    const trashItem = await prisma.trashbin.findUnique({
+      where: { id: trashId }
+    });
+
+    if (!trashItem || trashItem.originalTable !== "AfterService") {
+      return {
+        success: false,
+        error: { code: "NOT_FOUND", message: "蹂듦뎄??AS瑜?李얠쓣 ???놁뒿?덈떎" }
+      };
+    }
+
+    const originalData = trashItem.originalData as any;
+    
+    // 愿怨??꾨뱶 ?쒓굅
+    const { customer, order, assignedTo, ...asData } = originalData;
+
+    // Decimal ?꾨뱶 蹂??
+    const cleanAsData = {
+      ...asData,
+      estimatedCost: asData.estimatedCost ? parseFloat(String(asData.estimatedCost)) : null,
+      actualCost: asData.actualCost ? parseFloat(String(asData.actualCost)) : null,
+    };
+
+    // ??ID濡?AS ?앹꽦
+    const newAS = await prisma.afterService.create({
+      data: {
+        ...cleanAsData,
+        id: undefined, // ??ID ?앹꽦
+        createdAt: new Date(asData.createdAt),
+        updatedAt: new Date(),
+      }
+    });
+
+    // ?댁??듭뿉????젣
+    await prisma.trashbin.delete({
+      where: { id: trashId }
+    });
+
+    revalidatePath("/dashboard/after-service");
+    revalidatePath("/dashboard/data/trash");
+
+    return { success: true, data: { restored: true, asId: newAS.id } };
+  } catch (error) {
+    console.error("[restoreAfterService] Error:", error);
+    return {
+      success: false,
+      error: { code: "RESTORE_FAILED", message: "AS 蹂듦뎄???ㅽ뙣?덉뒿?덈떎" }
+    };
+  }
+}
+
+/**
+ * ?щ윭 ??ぉ 蹂듦뎄
+ */
+export async function restoreMultipleItems(
+  trashIds: string[]
+): Promise<ApiResponse<{ restoredCount: number }>> {
+  if (!trashIds || trashIds.length === 0) {
+    return {
+      success: false,
+      error: { code: "INVALID_IDS", message: "?댁???ID 紐⑸줉???꾩슂?⑸땲?? }
+    };
+  }
+
+  try {
+    let restoredCount = 0;
+
+    for (const trashId of trashIds) {
+      const trashItem = await prisma.trashbin.findUnique({
+        where: { id: trashId }
+      });
+
+      if (!trashItem) continue;
+
+      try {
+        if (trashItem.originalTable === "Order") {
+          const result = await restoreOrder(trashId);
+          if (result.success) restoredCount++;
+        } else if (trashItem.originalTable === "AfterService") {
+          const result = await restoreAfterService(trashId);
+          if (result.success) restoredCount++;
+        }
+      } catch (err) {
+        console.error(`[restoreMultipleItems] Error restoring ${trashId}:`, err);
+      }
+    }
+
+    revalidatePath("/dashboard/orders");
+    revalidatePath("/dashboard/after-service");
+    revalidatePath("/dashboard/data/trash");
+
+    return { success: true, data: { restoredCount } };
+  } catch (error) {
+    console.error("[restoreMultipleItems] Error:", error);
+    return {
+      success: false,
+      error: { code: "RESTORE_FAILED", message: "蹂듦뎄???ㅽ뙣?덉뒿?덈떎" }
+    };
+  }
+}
+
+// ============================================================================
+// ?곴뎄 ??젣
+// ============================================================================
+
+/**
+ * ?댁??듭뿉???곴뎄 ??젣
+ */
+export async function permanentlyDelete(
+  trashId: string
+): Promise<ApiResponse<{ deleted: boolean }>> {
+  if (!trashId) {
+    return {
+      success: false,
+      error: { code: "INVALID_ID", message: "?댁???ID媛 ?꾩슂?⑸땲?? }
+    };
+  }
+
+  try {
+    await prisma.trashbin.delete({
+      where: { id: trashId }
+    });
+
+    revalidatePath("/dashboard/data/trash");
+
+    return { success: true, data: { deleted: true } };
+  } catch (error) {
+    console.error("[permanentlyDelete] Error:", error);
+    return {
+      success: false,
+      error: { code: "DELETE_FAILED", message: "?곴뎄 ??젣???ㅽ뙣?덉뒿?덈떎" }
+    };
+  }
+}
+
+/**
+ * ?댁???鍮꾩슦湲?(?꾩껜 ?곴뎄 ??젣)
+ */
+export async function emptyTrash(
+  tableFilter?: string
+): Promise<ApiResponse<{ deletedCount: number }>> {
+  try {
+    const result = await prisma.trashbin.deleteMany({
+      where: tableFilter ? { originalTable: tableFilter } : undefined
+    });
+
+    revalidatePath("/dashboard/data/trash");
+
+    return { success: true, data: { deletedCount: result.count } };
+  } catch (error) {
+    console.error("[emptyTrash] Error:", error);
+    return {
+      success: false,
+      error: { code: "DELETE_FAILED", message: "?댁???鍮꾩슦湲곗뿉 ?ㅽ뙣?덉뒿?덈떎" }
+    };
+  }
+}
+
+/**
+ * 留뚮즺????ぉ ?먮룞 ??젣 (?ㅼ?以꾨윭??
+ */
+export async function cleanupExpiredTrash(): Promise<ApiResponse<{ deletedCount: number }>> {
+  try {
+    const result = await prisma.trashbin.deleteMany({
+      where: {
+        expiresAt: { lte: new Date() }
+      }
+    });
+
+    console.log(`[cleanupExpiredTrash] Deleted ${result.count} expired items`);
+
+    return { success: true, data: { deletedCount: result.count } };
+  } catch (error) {
+    console.error("[cleanupExpiredTrash] Error:", error);
+    return {
+      success: false,
+      error: { code: "CLEANUP_FAILED", message: "留뚮즺 ??ぉ ?뺣━???ㅽ뙣?덉뒿?덈떎" }
+    };
+  }
+}

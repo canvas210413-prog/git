@@ -1,0 +1,172 @@
+[
+  {
+    "id": "2026-02-02T07-32-22-209Z",
+    "filename": "backup_manual_2026-02-02T07-32-22-209Z.sql",
+    "date": "2026-02-02T07:32:23.239Z",
+    "type": "manual",
+    "size": "79.53 MB",
+    "sizeBytes": 83396019,
+    "status": "success",
+    "duration": "1초"
+  },
+  {
+    "id": "2026-02-01T13-36-14-215Z",
+    "filename": "backup_manual_2026-02-01T13-36-14-215Z.sql",
+    "date": "2026-02-01T13:36:15.202Z",
+    "type": "manual",
+    "size": "77.65 MB",
+    "sizeBytes": 81418617,
+    "status": "success",
+    "duration": "1초"
+  },
+  {
+    "id": "2026-01-31T16-15-23-213Z",
+    "filename": "backup_manual_2026-01-31T16-15-23-213Z.sql",
+    "date": "2026-01-31T16:15:24.179Z",
+    "type": "manual",
+    "size": "77.62 MB",
+    "sizeBytes": 81395329,
+    "status": "success",
+    "duration": "1초"
+  },
+  {
+    "id": "2026-01-31T04-25-29-831Z",
+    "filename": "backup_manual_2026-01-31T04-25-29-831Z.sql",
+    "date": "2026-01-31T04:25:30.986Z",
+    "type": "manual",
+    "size": "134.29 MB",
+    "sizeBytes": 140818064,
+    "status": "success",
+    "duration": "1초"
+  },
+  {
+    "id": "2026-01-31T04-05-49-182Z",
+    "filename": "backup_manual_2026-01-31T04-05-49-182Z.sql",
+    "date": "2026-01-31T04:05:50.471Z",
+    "type": "manual",
+    "size": "126.47 MB",
+    "sizeBytes": 132615736,
+    "status": "success",
+    "duration": "1초"
+  },
+  {
+    "id": "2026-01-29T12-53-05-042Z",
+    "filename": "backup_manual_2026-01-29T12-53-05-042Z.sql",
+    "date": "2026-01-29T12:53:06.242Z",
+    "type": "manual",
+    "size": "126.39 MB",
+    "sizeBytes": 132525044,
+    "status": "success",
+    "duration": "1초"
+  },
+  {
+    "id": "2026-01-29T11-20-40-726Z",
+    "filename": "backup_manual_2026-01-29T11-20-40-726Z.sql",
+    "date": "2026-01-29T11:20:41.865Z",
+    "type": "manual",
+    "size": "94.78 MB",
+    "sizeBytes": 99380256,
+    "status": "success",
+    "duration": "1초"
+  },
+  {
+    "id": "2026-01-28T14-57-58-795Z",
+    "filename": "backup_manual_2026-01-28T14-57-58-795Z.sql",
+    "date": "2026-01-28T14:57:59.210Z",
+    "type": "manual",
+    "size": "8.26 MB",
+    "sizeBytes": 8660088,
+    "status": "success",
+    "duration": "0초"
+  },
+  {
+    "id": "2026-01-27T11-14-15-850Z",
+    "filename": "backup_manual_2026-01-27T11-14-15-850Z.sql",
+    "date": "2026-01-27T11:14:16.219Z",
+    "type": "manual",
+    "size": "8.23 MB",
+    "sizeBytes": 8628766,
+    "status": "success",
+    "duration": "0초"
+  },
+  {
+    "id": "2026-01-27T11-07-27-919Z",
+    "filename": "backup_manual_2026-01-27T11-07-27-919Z.sql",
+    "date": "2026-01-27T11:07:28.266Z",
+    "type": "manual",
+    "size": "8.23 MB",
+    "sizeBytes": 8628766,
+    "status": "success",
+    "duration": "0초"
+  },
+  {
+    "id": "2026-01-27T11-02-33-549Z",
+    "filename": "backup_manual_2026-01-27T11-02-33-549Z.sql",
+    "date": "2026-01-27T11:02:33.903Z",
+    "type": "manual",
+    "size": "8.23 MB",
+    "sizeBytes": 8628766,
+    "status": "success",
+    "duration": "0초"
+  },
+  {
+    "id": "2026-01-27T11-02-06-472Z",
+    "filename": "backup_manual_2026-01-27T11-02-06-472Z.sql",
+    "date": "2026-01-27T11:02:06.824Z",
+    "type": "manual",
+    "size": "8.23 MB",
+    "sizeBytes": 8628766,
+    "status": "success",
+    "duration": "0초"
+  },
+  {
+    "id": "2026-01-27T11-00-18-266Z",
+    "filename": "backup_manual_2026-01-27T11-00-18-266Z.sql",
+    "date": "2026-01-27T11:00:18.605Z",
+    "type": "manual",
+    "size": "8.23 MB",
+    "sizeBytes": 8628766,
+    "status": "success",
+    "duration": "0초"
+  },
+  {
+    "id": "2026-01-27T10-56-01-034Z",
+    "filename": "backup_manual_2026-01-27T10-56-01-034Z.sql",
+    "date": "2026-01-27T10:56:01.381Z",
+    "type": "manual",
+    "size": "8.23 MB",
+    "sizeBytes": 8628766,
+    "status": "success",
+    "duration": "0초"
+  },
+  {
+    "id": "2026-01-27T10-52-35-190Z",
+    "filename": "backup_manual_2026-01-27T10-52-35-190Z.sql",
+    "date": "2026-01-27T10:52:35.533Z",
+    "type": "manual",
+    "size": "8.23 MB",
+    "sizeBytes": 8628766,
+    "status": "success",
+    "duration": "0초"
+  },
+  {
+    "id": "2026-01-27T10-38-03-697Z",
+    "filename": "backup_manual_2026-01-27T10-38-03-697Z.sql",
+    "date": "2026-01-27T10:38:04.054Z",
+    "type": "manual",
+    "size": "8.23 MB",
+    "sizeBytes": 8628766,
+    "status": "success",
+    "duration": "0초"
+  },
+  {
+    "id": "2026-01-27T10-25-42-461Z",
+    "filename": "backup_manual_2026-01-27T10-25-42-461Z.sql",
+    "date": "2026-01-27T10:25:42.951Z",
+    "type": "manual",
+    "size": "8.23 MB",
+    "sizeBytes": 8628766,
+    "status": "success",
+    "duration": "0초"
+  }
+]

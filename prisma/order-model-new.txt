@@ -1,0 +1,28 @@
+﻿model Order {
+  id              String      @id @default(cuid())
+  customerId      String
+  customer        Customer    @relation(fields: [customerId], references: [id])
+  
+  orderDate       DateTime    @default(now())
+  totalAmount     Decimal     @default(0)
+  status          String      @default("PENDING")
+  
+  recipientName   String?
+  recipientPhone  String?
+  recipientMobile String?
+  recipientZipCode String?
+  recipientAddr   String?
+  orderNumber     String?
+  productInfo     String?
+  deliveryMsg     String?
+  orderSource     String?
+  unitPrice       Decimal?
+  shippingFee     Decimal?
+  courier         String?
+  trackingNumber  String?
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  items           OrderItem[]
+}

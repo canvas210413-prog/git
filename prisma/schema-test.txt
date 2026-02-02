@@ -1,0 +1,222 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String?  // For credentials auth
+  role      String   @default("USER") // "USER", "ADMIN", "MANAGER"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  ticketsAssigned Ticket[]
+  leadsManaged    Lead[]
+}
+
+model Customer {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  phone       String?
+  company     String?
+  status      String   @default("ACTIVE") // "ACTIVE", "INACTIVE", "ARCHIVED"
+  segment     String?  // e.g., "VIP", "New", "At-Risk" (AI calculated)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orders      Order[]
+  tickets     Ticket[]
+  leads       Lead[]
+  gifts       Gift[]
+  notes       CustomerNote[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Decimal
+  sku         String   @unique
+  stock       Int      @default(0)
+  category    String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItems  OrderItem[]
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  customerId      String
+  customer        Customer    @relation(fields: [customerId], references: [id])
+  
+  // ?? ??? ????
+  orderDate       DateTime    @default(now())
+  totalAmount     Decimal
+  status          String      @default("PENDING") // "PENDING", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"
+  
+  // ???? ??? ???
+  customerPhone   String?     // ?????? ?????
+  customerMobile  String?     // ?????? ??????
+  shippingAddr    String?     // ?????? ??????
+  notes           String?     // ???????
+  
+  productName     String?     // ?????
+  giftOption      String?     // ???? ?? ????  
+  quantity        Int         @default(1) // ????
+  
+  // ??? ??
+  basePrice       Decimal?    // ?? ???
+  additionalFee   Decimal?    // ?????
+  shippingFee     Decimal?    // ????
+  
+  // ??? ????
+  shippingMethod  String?     // ??? ???
+  recipientName   String?     // ????? (if different from customer)
+  recipientPhone  String?     // ????? ?????
+  shippingStatus  String?     // ??? ????
+  
+  // ???? ????
+  staffName       String?     // ??????
+  memo            String?     // ???
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  items           OrderItem[]
+}
+
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Decimal // Snapshot of price at time of order
+}
+
+model Lead {
+  id          String     @id @default(cuid())
+  customerId  String?
+  customer    Customer?  @relation(fields: [customerId], references: [id])
+  title       String
+  description String?
+  value       Decimal?
+  status      String     @default("NEW") // "NEW", "CONTACTED", "QUALIFIED", "PROPOSAL", "NEGOTIATION", "WON", "LOST"
+  
+  assignedToId String?
+  assignedTo   User?     @relation(fields: [assignedToId], references: [id])
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Ticket {
+  id          String         @id @default(cuid())
+  subject     String
+  description String?
+  status      String         @default("OPEN") // "OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"
+  priority    String         @default("MEDIUM") // "LOW", "MEDIUM", "HIGH", "URGENT"
+  
+  customerId  String
+  customer    Customer       @relation(fields: [customerId], references: [id])
+  
+  assignedToId String?
+  assignedTo   User?         @relation(fields: [assignedToId], references: [id])
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  status      String   // "DRAFT", "ACTIVE", "COMPLETED"
+  startDate   DateTime?
+  endDate     DateTime?
+  budget      Decimal?
+  spent       Decimal?
+  roi         Decimal? // Calculated by AI or manually
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Partner {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  phone       String?
+  company     String?
+  status      String   // "ACTIVE", "PENDING"
+  type        String?  // "Reseller", "Distributor"
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Part {
+  id          String   @id @default(cuid())
+  name        String
+  sku         String   @unique
+  description String?
+  stock       Int      @default(0)
+  minStock    Int      @default(10) // Reorder point
+  price       Decimal
+  location    String?  // Warehouse location
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model KnowledgeArticle {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  category    String
+  tags        String?  // Comma separated
+  authorId    String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Gift {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  name        String
+  description String?
+  status      String   // "PENDING", "SENT", "DELIVERED"
+  sentAt      DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CustomerNote {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  content     String
+  authorName  String?  // Store name directly for simplicity
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+

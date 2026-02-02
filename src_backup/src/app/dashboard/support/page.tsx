@@ -1,0 +1,64 @@
+import { getTickets, getTicketStats } from "@/app/actions/support";
+import { SupportDashboard } from "@/components/support/support-dashboard";
+import { AlertCircle } from "lucide-react";
+import { NaverCrawlPanel } from "@/components/support/naver-crawl-panel";
+
+export default async function SupportPage() {
+  let tickets: any[] = [];
+  let stats = { total: 0, open: 0, inProgress: 0, resolved: 0 };
+  let error = null;
+
+  try {
+    tickets = await getTickets();
+    stats = await getTicketStats();
+
+    // 네이버 Q&A/리뷰 작성일 기준으로 재정렬 (최신순)
+    tickets.sort((a, b) => {
+      const getNaverDateValue = (desc: string) => {
+        const qnaMatch = desc.match(/\[네이버 Q&A - (\d{4})\.(\d{2})\.(\d{2})\.\]/);
+        if (qnaMatch) {
+          return new Date(`${qnaMatch[1]}-${qnaMatch[2]}-${qnaMatch[3]}`).getTime();
+        }
+        const reviewMatch = desc.match(/\[네이버 리뷰 - (\d{4})\.(\d{2})\.(\d{2})\.\]/);
+        if (reviewMatch) {
+          return new Date(`${reviewMatch[1]}-${reviewMatch[2]}-${reviewMatch[3]}`).getTime();
+        }
+        return new Date(a.createdAt).getTime();
+      };
+
+      const dateA = getNaverDateValue(a.description);
+      const dateB = getNaverDateValue(b.description);
+
+      return dateB - dateA; // 최신순 (내림차순)
+    });
+  } catch (e) {
+    console.error("Error loading tickets:", e);
+    error = e;
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">CS/문의 (Helpdesk)</h2>
+          <p className="text-muted-foreground">
+            고객의 문의, 불만, A/S 요청 등을 접수, 처리 및 종결하는 프로세스를 관리합니다.
+          </p>
+        </div>
+
+        {/* 에러 시에는 기본 패널 표시 (기본값 Q&A) */}
+        <NaverCrawlPanel activeTab="qna" onTabChange={() => {}} />
+
+        <div className="p-8 text-center bg-amber-50 rounded-lg">
+          <AlertCircle className="h-12 w-12 text-amber-600 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-amber-900">티켓을 불러올 수 없습니다</h3>
+          <p className="text-sm text-amber-700 mt-2">
+            잠시 후 다시 시도해주세요.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return <SupportDashboard tickets={tickets} stats={stats} />;
+}

@@ -1,0 +1,801 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model afterservice {
+  id                 String    @id
+  asNumber           String?   @unique(map: "AfterService_asNumber_key")
+  ticketNumber       String?
+  customerId         String
+  orderId            String?
+  customerName       String?
+  type               String
+  issueType          String?
+  status             String    @default("RECEIVED")
+  priority           String    @default("NORMAL")
+  description        String?   @db.Text
+  productName        String?
+  serialNumber       String?
+  symptom            String?   @db.Text
+  diagnosis          String?   @db.Text
+  resolution         String?   @db.Text
+  assignedToId       String?
+  serviceDate        DateTime?
+  receivedAt         DateTime  @default(now())
+  completedAt        DateTime?
+  estimatedCost      Decimal?  @db.Decimal(10, 2)
+  actualCost         Decimal?  @db.Decimal(10, 2)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime
+  companyName        String?
+  courier            String?
+  customerAddress    String?   @db.Text
+  customerPhone      String?
+  pickupCompleteDate DateTime?
+  pickupRequestDate  DateTime?
+  processDate        DateTime?
+  purchaseDate       DateTime?
+  repairContent      String?   @db.Text
+  shipDate           DateTime?
+  trackingNumber     String?
+  user               user?     @relation(fields: [assignedToId], references: [id], map: "AfterService_assignedToId_fkey")
+  customer           customer  @relation(fields: [customerId], references: [id], map: "AfterService_customerId_fkey")
+  order              order?    @relation(fields: [orderId], references: [id], map: "AfterService_orderId_fkey")
+
+  @@index([assignedToId], map: "AfterService_assignedToId_fkey")
+  @@index([customerId], map: "AfterService_customerId_fkey")
+  @@index([orderId], map: "AfterService_orderId_fkey")
+}
+
+model auditlog {
+  id           String   @id
+  userId       String?
+  action       String
+  resource     String
+  resourceId   String?
+  details      Json?
+  ipAddress    String?
+  userAgent    String?  @db.Text
+  status       String
+  errorMessage String?  @db.Text
+  createdAt    DateTime @default(now())
+  user         user?    @relation(fields: [userId], references: [id], map: "AuditLog_userId_fkey")
+
+  @@index([action], map: "AuditLog_action_idx")
+  @@index([createdAt], map: "AuditLog_createdAt_idx")
+  @@index([resource], map: "AuditLog_resource_idx")
+  @@index([status], map: "AuditLog_status_idx")
+  @@index([userId], map: "AuditLog_userId_idx")
+}
+
+model baseproduct {
+  id          String   @id
+  name        String
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  partnerCode String?
+
+  @@index([isActive], map: "BaseProduct_isActive_idx")
+  @@index([partnerCode], map: "BaseProduct_partnerCode_idx")
+  @@index([sortOrder], map: "BaseProduct_sortOrder_idx")
+}
+
+model campaign {
+  id          String    @id
+  name        String
+  description String?   @db.Text
+  type        String?
+  status      String    @default("DRAFT")
+  startDate   DateTime?
+  endDate     DateTime?
+  budget      Decimal?  @db.Decimal(10, 2)
+  spent       Decimal?  @db.Decimal(10, 2)
+  roi         Decimal?  @db.Decimal(10, 2)
+  targetCount Int       @default(0)
+  sentCount   Int       @default(0)
+  openRate    Decimal?  @db.Decimal(5, 2)
+  clickRate   Decimal?  @db.Decimal(5, 2)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime
+}
+
+model chatbotconfig {
+  id                      String    @id
+  name                    String    @default("기본 챗봇")
+  welcomeMessage          String?   @db.Text
+  escalationKeywords      String?   @db.Text
+  isActive                Boolean   @default(true)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime
+  abTestVariant           String?   @default("A")
+  anonymizeAfterDays      Int       @default(30)
+  apiRateLimit            Int       @default(100)
+  autoEscalateOnFail      Boolean   @default(true)
+  autoGreeting            Boolean   @default(true)
+  avatarUrl               String?
+  blockedKeywords         String?   @db.Text
+  brandVoice              String?
+  businessDays            String?
+  businessHoursEnd        String?
+  businessHoursOnly       Boolean   @default(false)
+  businessHoursStart      String?
+  chatPosition            String?   @default("bottom-right")
+  contextMemoryLength     Int       @default(10)
+  dataRetentionDays       Int       @default(90)
+  defaultLanguage         String?   @default("ko")
+  emailNotifications      Boolean   @default(false)
+  enableABTesting         Boolean   @default(false)
+  enableAnalytics         Boolean   @default(true)
+  enableApiAccess         Boolean   @default(false)
+  enableAutoLearning      Boolean   @default(false)
+  enableContextMemory     Boolean   @default(true)
+  enableEncryption        Boolean   @default(true)
+  enableEscalation        Boolean   @default(true)
+  enableIntentRecognition Boolean   @default(true)
+  enableSentimentAnalysis Boolean   @default(true)
+  gdprCompliant           Boolean   @default(true)
+  learningThreshold       Float     @default(0.8)
+  maxConversationLength   Int       @default(50)
+  maxFailBeforeEscalate   Int       @default(3)
+  maxTokens               Int       @default(1000)
+  notificationEmail       String?
+  outOfHoursMessage       String?   @db.Text
+  publishedAt             DateTime?
+  requirePhoneAuth        Boolean   @default(true)
+  responseStyle           String?   @default("BALANCED")
+  sensitiveDataFilter     Boolean   @default(true)
+  showSuggestions         Boolean   @default(true)
+  slackChannel            String?
+  supportedLanguages      String?
+  systemPrompt            String?   @db.Text
+  temperature             Float     @default(0.7)
+  themeColor              String?   @default("#3B82F6")
+  timezone                String?   @default("Asia/Seoul")
+  trackUserBehavior       Boolean   @default(true)
+  version                 Int       @default(1)
+  webhookUrl              String?
+}
+
+model chatmessage {
+  id          String      @id
+  sessionId   String
+  content     String      @db.Text
+  senderType  String
+  senderId    String?
+  createdAt   DateTime    @default(now())
+  chatsession chatsession @relation(fields: [sessionId], references: [id], onDelete: Cascade, map: "ChatMessage_sessionId_fkey")
+
+  @@index([sessionId], map: "ChatMessage_sessionId_fkey")
+}
+
+model chatsession {
+  id             String        @id
+  customerId     String
+  assignedToId   String?
+  status         String        @default("WAITING")
+  channel        String        @default("WEB")
+  priority       Int           @default(0)
+  startedAt      DateTime      @default(now())
+  endedAt        DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime
+  isEscalated    Boolean       @default(false)
+  assignedAt     DateTime?
+  escalatedAt    DateTime?
+  category       String?
+  customerName   String?
+  phone          String?
+  summary        String?       @db.Text
+  escalateReason String?       @db.Text
+  chatmessage    chatmessage[]
+  user           user?         @relation(fields: [assignedToId], references: [id], map: "ChatSession_assignedToId_fkey")
+  customer       customer      @relation(fields: [customerId], references: [id], map: "ChatSession_customerId_fkey")
+
+  @@index([assignedToId], map: "ChatSession_assignedToId_fkey")
+  @@index([category], map: "ChatSession_category_idx")
+  @@index([customerId], map: "ChatSession_customerId_fkey")
+  @@index([phone], map: "ChatSession_phone_idx")
+  @@index([status], map: "ChatSession_status_idx")
+}
+
+model coupon {
+  id                String        @id
+  code              String        @unique(map: "Coupon_code_key")
+  name              String
+  description       String?       @db.Text
+  discountType      String
+  discountValue     Decimal       @db.Decimal(10, 2)
+  minOrderAmount    Decimal?      @db.Decimal(10, 2)
+  maxDiscountAmount Decimal?      @db.Decimal(10, 2)
+  validFrom         DateTime
+  validUntil        DateTime
+  usageLimit        Int           @default(0)
+  usagePerCustomer  Int           @default(1)
+  usedCount         Int           @default(0)
+  targetSegment     String?
+  targetCustomers   Json?
+  isActive          Boolean       @default(true)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime
+  couponusage       couponusage[]
+}
+
+model couponusage {
+  id             String   @id
+  couponId       String
+  customerId     String?
+  orderId        String?
+  discountAmount Decimal  @db.Decimal(10, 2)
+  usedAt         DateTime @default(now())
+  coupon         coupon   @relation(fields: [couponId], references: [id], map: "CouponUsage_couponId_fkey")
+
+  @@index([couponId], map: "CouponUsage_couponId_idx")
+  @@index([customerId], map: "CouponUsage_customerId_idx")
+}
+
+model customer {
+  id                  String         @id
+  name                String
+  email               String         @unique(map: "Customer_email_key")
+  phone               String?
+  company             String?
+  status              String         @default("ACTIVE")
+  segment             String?
+  grade               String?        @default("NORMAL")
+  totalPurchaseAmount Int            @default(0)
+  address             String?        @db.Text
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime
+  afterservice        afterservice[]
+  chatsession         chatsession[]
+  customernote        customernote[]
+  gift                gift[]
+  lead                lead[]
+  order               order[]
+  ticket              ticket[]
+}
+
+model customernote {
+  id         String   @id
+  customerId String
+  content    String   @db.Text
+  authorName String?
+  noteType   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+  customer   customer @relation(fields: [customerId], references: [id], map: "CustomerNote_customerId_fkey")
+
+  @@index([customerId], map: "CustomerNote_customerId_fkey")
+}
+
+model educationmaterial {
+  id            String   @id
+  title         String
+  description   String?  @db.Text
+  category      String
+  type          String
+  fileUrl       String?  @db.Text
+  fileName      String?
+  fileSize      Int?
+  mimeType      String?
+  thumbnailUrl  String?  @db.Text
+  duration      Int?
+  views         Int      @default(0)
+  downloads     Int      @default(0)
+  isPublished   Boolean  @default(true)
+  isPinned      Boolean  @default(false)
+  targetPartner String?
+  createdBy     String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime
+
+  @@index([category], map: "EducationMaterial_category_idx")
+  @@index([createdAt], map: "EducationMaterial_createdAt_idx")
+  @@index([isPublished], map: "EducationMaterial_isPublished_idx")
+  @@index([targetPartner], map: "EducationMaterial_targetPartner_idx")
+  @@index([type], map: "EducationMaterial_type_idx")
+}
+
+model faq {
+  id         String   @id
+  question   String   @db.Text
+  answer     String   @db.Text
+  category   String
+  orderIndex Int      @default(0)
+  isActive   Boolean  @default(true)
+  viewCount  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+}
+
+model gift {
+  id          String    @id
+  customerId  String
+  name        String
+  description String?   @db.Text
+  value       Decimal?  @db.Decimal(10, 2)
+  status      String    @default("PENDING")
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime
+  customer    customer  @relation(fields: [customerId], references: [id], map: "Gift_customerId_fkey")
+
+  @@index([customerId], map: "Gift_customerId_fkey")
+}
+
+model inventorylog {
+  id              String   @id
+  partId          String
+  type            String
+  quantity        Int
+  beforeQty       Int
+  afterQty        Int
+  reason          String?  @db.Text
+  relatedPartId   String?
+  relatedPartName String?
+  userId          String?
+  userName        String?
+  createdAt       DateTime @default(now())
+  part            part     @relation(fields: [partId], references: [id], onDelete: Cascade, map: "InventoryLog_partId_fkey")
+
+  @@index([createdAt], map: "InventoryLog_createdAt_idx")
+  @@index([partId], map: "InventoryLog_partId_idx")
+  @@index([type], map: "InventoryLog_type_idx")
+}
+
+model knowledgearticle {
+  id          String   @id
+  title       String
+  content     String   @db.Text
+  category    String
+  tags        String?
+  authorId    String?
+  viewCount   Int      @default(0)
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+}
+
+model lead {
+  id           String    @id
+  customerId   String?
+  title        String
+  description  String?   @db.Text
+  value        Decimal?  @db.Decimal(10, 2)
+  status       String    @default("NEW")
+  source       String?
+  assignedToId String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime
+  user         user?     @relation(fields: [assignedToId], references: [id], map: "Lead_assignedToId_fkey")
+  customer     customer? @relation(fields: [customerId], references: [id], map: "Lead_customerId_fkey")
+
+  @@index([assignedToId], map: "Lead_assignedToId_fkey")
+  @@index([customerId], map: "Lead_customerId_fkey")
+}
+
+model mallorder {
+  id              String    @id
+  orderNumber     String    @unique(map: "MallOrder_orderNumber_key")
+  userId          String?
+  totalAmount     Decimal   @db.Decimal(10, 2)
+  status          String    @default("PENDING")
+  shippingName    String?
+  shippingPhone   String?
+  shippingAddress String?   @db.Text
+  shippingMemo    String?
+  trackingNumber  String?
+  trackingCompany String?
+  items           Json?
+  paidAt          DateTime?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime
+  courier         String?
+  customerEmail   String?
+  customerName    String?
+  customerPhone   String?
+  deliveryMsg     String?   @db.Text
+  recipientAddr   String?   @db.Text
+  recipientName   String?
+  recipientZip    String?
+  shippingFee     Decimal?  @db.Decimal(10, 2)
+  subtotal        Decimal?  @db.Decimal(10, 2)
+  malluser        malluser? @relation(fields: [userId], references: [id], map: "MallOrder_userId_fkey")
+
+  @@index([userId], map: "MallOrder_userId_fkey")
+}
+
+model mallproduct {
+  id            String   @id
+  name          String
+  description   String?  @db.Text
+  price         Decimal  @db.Decimal(10, 2)
+  originalPrice Decimal? @db.Decimal(10, 2)
+  stock         Int      @default(0)
+  category      String?
+  images        Json?
+  tags          String?  @db.Text
+  isActive      Boolean  @default(true)
+  isFeatured    Boolean  @default(false)
+  rating        Decimal? @db.Decimal(3, 2)
+  reviewCount   Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime
+
+  @@index([category], map: "MallProduct_category_idx")
+  @@index([isActive], map: "MallProduct_isActive_idx")
+  @@index([isFeatured], map: "MallProduct_isFeatured_idx")
+}
+
+model mallqna {
+  id         String    @id
+  userId     String
+  productId  String?
+  title      String
+  content    String    @db.Text
+  category   String?
+  status     String    @default("PENDING")
+  answer     String?   @db.Text
+  answeredAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime
+  malluser   malluser  @relation(fields: [userId], references: [id], map: "MallQnA_userId_fkey")
+
+  @@index([status], map: "MallQnA_status_idx")
+  @@index([userId], map: "MallQnA_userId_idx")
+}
+
+model malluser {
+  id        String      @id
+  email     String      @unique(map: "MallUser_email_key")
+  name      String?
+  phone     String?
+  password  String?
+  address   String?     @db.Text
+  createdAt DateTime    @default(now())
+  updatedAt DateTime
+  mallorder mallorder[]
+  mallqna   mallqna[]
+}
+
+model message {
+  id                  String    @id
+  senderId            String
+  senderName          String
+  senderEmail         String?
+  receiverId          String
+  receiverName        String
+  receiverEmail       String?
+  subject             String
+  content             String    @db.Text
+  isRead              Boolean   @default(false)
+  readAt              DateTime?
+  isDeletedBySender   Boolean   @default(false)
+  isDeletedByReceiver Boolean   @default(false)
+  priority            String    @default("NORMAL")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([createdAt])
+  @@index([isRead])
+  @@index([receiverId])
+  @@index([senderId])
+}
+
+model notification {
+  id            String    @id
+  type          String
+  title         String
+  message       String    @db.Text
+  senderType    String
+  senderName    String
+  senderId      String?
+  targetType    String
+  targetPartner String?
+  relatedId     String?
+  relatedType   String?
+  isRead        Boolean   @default(false)
+  readAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([createdAt])
+  @@index([isRead])
+  @@index([targetPartner])
+  @@index([targetType])
+}
+
+model order {
+  id               String         @id
+  orderNumber      String?        @unique(map: "Order_orderNumber_key")
+  customerId       String
+  orderDate        DateTime       @default(now())
+  totalAmount      Decimal        @db.Decimal(10, 2)
+  status           String         @default("PENDING")
+  orderSource      String?
+  productInfo      String?        @db.Text
+  customerName     String?
+  customerPhone    String?
+  customerMobile   String?
+  customerEmail    String?
+  shippingAddr     String?        @db.Text
+  shippingMethod   String?
+  shippingFee      Decimal?       @db.Decimal(10, 2)
+  recipientName    String?
+  recipientPhone   String?
+  shippingStatus   String?
+  trackingNumber   String?
+  productName      String?
+  quantity         Int            @default(1)
+  basePrice        Decimal?       @db.Decimal(10, 2)
+  additionalFee    Decimal?       @db.Decimal(10, 2)
+  giftOption       String?
+  staffName        String?
+  notes            String?        @db.Text
+  memo             String?        @db.Text
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime
+  contactPhone     String?
+  courier          String?
+  deliveryMsg      String?        @db.Text
+  ordererName      String?
+  partner          String?
+  recipientAddr    String?        @db.Text
+  recipientMobile  String?
+  recipientZipCode String?
+  giftSent         Boolean        @default(false)
+  afterservice     afterservice[]
+  customer         customer       @relation(fields: [customerId], references: [id], map: "Order_customerId_fkey")
+  orderitem        orderitem[]
+
+  @@index([customerId], map: "Order_customerId_fkey")
+}
+
+model orderitem {
+  id        String   @id
+  orderId   String
+  productId String
+  quantity  Int
+  price     Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+  order     order    @relation(fields: [orderId], references: [id], onDelete: Cascade, map: "OrderItem_orderId_fkey")
+  product   product  @relation(fields: [productId], references: [id], map: "OrderItem_productId_fkey")
+
+  @@index([orderId], map: "OrderItem_orderId_fkey")
+  @@index([productId], map: "OrderItem_productId_fkey")
+}
+
+model part {
+  id           String         @id
+  name         String
+  description  String?        @db.Text
+  minStock     Int            @default(10)
+  location     String?
+  category     String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime
+  partNumber   String         @unique(map: "Part_partNumber_key")
+  quantity     Int            @default(0)
+  supplier     String?
+  unitPrice    Decimal?       @db.Decimal(10, 2)
+  inventorylog inventorylog[]
+}
+
+model partner {
+  id         String   @id
+  name       String
+  email      String   @unique(map: "Partner_email_key")
+  phone      String?
+  company    String?
+  status     String   @default("ACTIVE")
+  type       String?
+  region     String?
+  commission Decimal? @db.Decimal(5, 2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+}
+
+model permission {
+  id             String           @id
+  resource       String
+  action         String
+  scope          String           @default("own")
+  displayName    String
+  description    String?          @db.Text
+  isSystem       Boolean          @default(false)
+  category       String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime
+  rolepermission rolepermission[]
+
+  @@unique([resource, action, scope], map: "Permission_resource_action_scope_key")
+  @@index([category], map: "Permission_category_idx")
+  @@index([resource], map: "Permission_resource_idx")
+}
+
+model product {
+  id          String      @id
+  name        String
+  description String?     @db.Text
+  price       Decimal     @db.Decimal(10, 2)
+  sku         String      @unique(map: "Product_sku_key")
+  stock       Int         @default(0)
+  category    String?
+  imageUrl    String?
+  isActive    Boolean     @default(true)
+  isFeatured  Boolean     @default(false)
+  tags        String?     @db.Text
+  rating      Decimal?    @db.Decimal(2, 1)
+  reviewCount Int         @default(0)
+  soldCount   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime
+  orderitem   orderitem[]
+}
+
+model review {
+  id            String    @id
+  productId     String?
+  productName   String?
+  rating        Int
+  content       String    @db.Text
+  authorName    String?
+  source        String?
+  sentiment     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime
+  date          DateTime  @default(now())
+  alertNote     String?   @db.Text
+  alertStatus   String?
+  author        String?
+  images        String?   @db.Text
+  isAlerted     Boolean   @default(false)
+  naverReviewId String?
+  option        String?
+  productUrl    String?   @db.Text
+  resolvedAt    DateTime?
+  resolvedType  String?
+  topics        String?   @db.Text
+}
+
+model role {
+  id             String           @id
+  name           String           @unique(map: "Role_name_key")
+  displayName    String
+  description    String?          @db.Text
+  isSystem       Boolean          @default(false)
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime
+  rolepermission rolepermission[]
+  userrole       userrole[]
+
+  @@index([isActive], map: "Role_isActive_idx")
+  @@index([name], map: "Role_name_idx")
+}
+
+model rolepermission {
+  id           String     @id
+  roleId       String
+  permissionId String
+  createdAt    DateTime   @default(now())
+  permission   permission @relation(fields: [permissionId], references: [id], onDelete: Cascade, map: "RolePermission_permissionId_fkey")
+  role         role       @relation(fields: [roleId], references: [id], onDelete: Cascade, map: "RolePermission_roleId_fkey")
+
+  @@unique([roleId, permissionId], map: "RolePermission_roleId_permissionId_key")
+  @@index([permissionId], map: "RolePermission_permissionId_idx")
+  @@index([roleId], map: "RolePermission_roleId_idx")
+}
+
+model ticket {
+  id           String    @id
+  ticketNumber String?   @unique(map: "Ticket_ticketNumber_key")
+  subject      String
+  description  String?   @db.Text
+  status       String    @default("OPEN")
+  priority     String    @default("MEDIUM")
+  category     String?
+  customerId   String
+  assignedToId String?
+  resolvedAt   DateTime?
+  closedAt     DateTime?
+  response     String?   @db.Text
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime
+  user         user?     @relation(fields: [assignedToId], references: [id], map: "Ticket_assignedToId_fkey")
+  customer     customer  @relation(fields: [customerId], references: [id], map: "Ticket_customerId_fkey")
+
+  @@index([assignedToId], map: "Ticket_assignedToId_fkey")
+  @@index([customerId], map: "Ticket_customerId_fkey")
+}
+
+model trashbin {
+  id            String   @id
+  originalId    String
+  originalTable String
+  originalData  Json
+  deletedBy     String?
+  deletedByName String?
+  deleteReason  String?  @db.Text
+  displayTitle  String?
+  displayInfo   String?  @db.Text
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt], map: "TrashBin_createdAt_idx")
+  @@index([deletedBy], map: "TrashBin_deletedBy_idx")
+  @@index([expiresAt], map: "TrashBin_expiresAt_idx")
+  @@index([originalTable], map: "TrashBin_originalTable_idx")
+}
+
+model user {
+  id                  String         @id
+  email               String         @unique(map: "User_email_key")
+  name                String?
+  password            String?
+  role                String         @default("USER")
+  isOnline            Boolean        @default(false)
+  maxChats            Int            @default(5)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime
+  failedLoginAttempts Int            @default(0)
+  isActive            Boolean        @default(true)
+  isLocked            Boolean        @default(false)
+  lastLoginAt         DateTime?
+  lastLoginIp         String?
+  passwordChangedAt   DateTime?
+  assignedPartner     String?
+  afterservice        afterservice[]
+  auditlog            auditlog[]
+  chatsession         chatsession[]
+  lead                lead[]
+  ticket              ticket[]
+  userrole            userrole[]
+
+  @@index([assignedPartner], map: "User_assignedPartner_idx")
+  @@index([email], map: "User_email_idx")
+  @@index([isActive], map: "User_isActive_idx")
+}
+
+model userrole {
+  id         String    @id
+  userId     String
+  roleId     String
+  assignedBy String?
+  assignedAt DateTime  @default(now())
+  expiresAt  DateTime?
+  role       role      @relation(fields: [roleId], references: [id], onDelete: Cascade, map: "UserRole_roleId_fkey")
+  user       user      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "UserRole_userId_fkey")
+
+  @@unique([userId, roleId], map: "UserRole_userId_roleId_key")
+  @@index([roleId], map: "UserRole_roleId_idx")
+  @@index([userId], map: "UserRole_userId_idx")
+}
+
+model usersession {
+  id        String   @id
+  userId    String
+  token     String   @unique(map: "UserSession_token_key")
+  ipAddress String?
+  userAgent String?  @db.Text
+  isActive  Boolean  @default(true)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+
+  @@index([expiresAt], map: "UserSession_expiresAt_idx")
+  @@index([token], map: "UserSession_token_idx")
+  @@index([userId], map: "UserSession_userId_idx")
+}

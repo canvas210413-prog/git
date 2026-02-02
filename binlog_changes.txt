@@ -1,0 +1,218 @@
+﻿
+#260127 21:56:26 server id 1  end_log_pos 127 CRC32 0xac4a3da2 	Start: binlog v 4, server v 8.4.6 created 260127 21:56:
+26 at startup
+#260127 21:56:26 server id 1  end_log_pos 158 CRC32 0xe6b5bd0d 	Previous-GTIDs
+#260127 21:56:31 server id 1  end_log_pos 237 CRC32 0xac03505c 	Anonymous_GTID	last_committed=0	sequence_number=1	rbr_o
+nly=yes	original_committed_timestamp=1769518591106754	immediate_commit_timestamp=1769518591106754	transaction_length=66
+5
+#260127 21:56:31 server id 1  end_log_pos 337 CRC32 0xcd71ccd6 	Query	thread_id=10	exec_time=0	error_code=0
+#260127 21:56:31 server id 1  end_log_pos 430 CRC32 0x88699ac2 	Table_map: `crm_ai_web`.`user` mapped to number 97
+#260127 21:56:31 server id 1  end_log_pos 792 CRC32 0x1e07ebbb 	Update_rows: table id 97 flags: STMT_END_F
+### UPDATE `crm_ai_web`.`user`
+###   @1='cmkb4qu3r0003pawcy2sc5vyh'
+###   @2='admin@company.co.kr'
+###   @3='愿由ъ옄'
+###   @4='$2b$10$.iatb8PCiF5FNqidKFEI4e/qTxCgwWe.r8O7mpIdKTOhzrW8CNvW6'
+###   @5='ADMIN'
+###   @6=1
+###   @7=5
+###   @8='2026-01-12 12:19:15.302'
+###   @9='2026-01-27 12:47:56.082'
+###   @10=0
+###   @11=1
+###   @12=0
+###   @13='2026-01-27 07:06:29.314'
+###   @14=NULL
+###   @15=NULL
+###   @16=NULL
+###   @1='cmkb4qu3r0003pawcy2sc5vyh'
+###   @2='admin@company.co.kr'
+###   @3='愿由ъ옄'
+###   @4='$2b$10$IRdxVHTZDeb.46YHnd/TAOW/NNitmGOLsICqH5cNYzc0OePPA1Sve'
+###   @5='ADMIN'
+###   @6=1
+###   @7=5
+###   @8='2026-01-12 12:19:15.302'
+###   @9='2026-01-27 12:56:31.103'
+###   @10=0
+###   @11=1
+###   @12=0
+###   @13='2026-01-27 07:06:29.314'
+###   @14=NULL
+###   @15=NULL
+###   @16=NULL
+#260127 21:56:31 server id 1  end_log_pos 823 CRC32 0x821f50d2 	Xid = 31
+#260128 13:18:21 server id 1  end_log_pos 902 CRC32 0x39d7e423 	Anonymous_GTID	last_committed=1	sequence_number=2	rbr_o
+nly=yes	original_committed_timestamp=1769573901239780	immediate_commit_timestamp=1769573901239780	transaction_length=44
+4
+#260128 13:18:21 server id 1  end_log_pos 993 CRC32 0xff154b0f 	Query	thread_id=73	exec_time=0	error_code=0
+#260128 13:18:21 server id 1  end_log_pos 1087 CRC32 0xd1dd69de 	Table_map: `crm_ai_web`.`customer` mapped to number 11
+0
+#260128 13:18:21 server id 1  end_log_pos 1236 CRC32 0x1edf4d98 	Write_rows: table id 110 flags: STMT_END_F
+### INSERT INTO `crm_ai_web`.`customer`
+###   @1='cmkxim0tt00005z7htm9x1j3p'
+###   @2='?대???
+###   @3='010-3859-6284@temp.com'
+###   @4='010-3859-6284'
+###   @5=NULL
+###   @6='ACTIVE'
+###   @7=NULL
+###   @8='NORMAL'
+###   @9=0
+###   @10=NULL
+###   @11='2026-01-28 04:18:21.231'
+###   @12='2026-01-28 04:18:21.231'
+#260128 13:18:21 server id 1  end_log_pos 1267 CRC32 0x4e11c580 	Xid = 1406
+#260128 13:18:21 server id 1  end_log_pos 1346 CRC32 0xa393809d 	Anonymous_GTID	last_committed=2	sequence_number=3	rbr_
+only=yes	original_committed_timestamp=1769573901244578	immediate_commit_timestamp=1769573901244578	transaction_length=6
+91
+#260128 13:18:21 server id 1  end_log_pos 1435 CRC32 0xa1798aa3 	Query	thread_id=73	exec_time=0	error_code=0
+#260128 13:18:21 server id 1  end_log_pos 1594 CRC32 0xc9faa058 	Table_map: `crm_ai_web`.`afterservice` mapped to numbe
+r 103
+#260128 13:18:21 server id 1  end_log_pos 1927 CRC32 0x418bee64 	Write_rows: table id 103 flags: STMT_END_F
+### INSERT INTO `crm_ai_web`.`afterservice`
+###   @1='cmkxim0u100025z7hxqpr178o'
+###   @2='AS-20260128-001'
+###   @3='AS-20260128-001'
+###   @4='cmkxim0tt00005z7htm9x1j3p'
+###   @5=NULL
+###   @6='?대???
+###   @7='REPAIR'
+###   @8='NOISE'
+###   @9='RECEIVED'
+###   @10='NORMAL'
+###   @11='???뚯쓬 - ?섎━鍮?2留뚯썝 ?덈궡??
+###   @12='??
+###   @13=''
+###   @14=NULL
+###   @15=NULL
+###   @16=NULL
+###   @17=NULL
+###   @18='2026-01-28 04:18:21.239'
+###   @19='2026-01-28 04:18:21.242'
+###   @20=NULL
+###   @21=NULL
+###   @22=NULL
+###   @23='2026-01-28 04:18:21.242'
+###   @24='2026-01-28 04:18:21.242'
+###   @25=''
+###   @26=''
+###   @27='遺?곗떆 ?숇옒援?李⑤강怨⑤줈 24 ?꾩씠?덉뒪 501??
+###   @28='010-3859-6284'
+###   @29=NULL
+###   @30=NULL
+###   @31=NULL
+###   @32=NULL
+###   @33=''
+###   @34=NULL
+###   @35=''
+#260128 13:18:21 server id 1  end_log_pos 1958 CRC32 0x7cfd0341 	Xid = 1414
+#260128 13:18:35 server id 1  end_log_pos 2037 CRC32 0xd66f9d70 	Anonymous_GTID	last_committed=3	sequence_number=4	rbr_
+only=yes	original_committed_timestamp=1769573915141865	immediate_commit_timestamp=1769573915141865	transaction_length=1
+000
+#260128 13:18:35 server id 1  end_log_pos 2135 CRC32 0x7bb03e74 	Query	thread_id=73	exec_time=0	error_code=0
+#260128 13:18:35 server id 1  end_log_pos 2294 CRC32 0x40a06f6d 	Table_map: `crm_ai_web`.`afterservice` mapped to numbe
+r 103
+#260128 13:18:35 server id 1  end_log_pos 2927 CRC32 0x6b3e6f2a 	Update_rows: table id 103 flags: STMT_END_F
+### UPDATE `crm_ai_web`.`afterservice`
+###   @1='cmkxim0u100025z7hxqpr178o'
+###   @2='AS-20260128-001'
+###   @3='AS-20260128-001'
+###   @4='cmkxim0tt00005z7htm9x1j3p'
+###   @5=NULL
+###   @6='?대???
+###   @7='REPAIR'
+###   @8='NOISE'
+###   @9='RECEIVED'
+###   @10='NORMAL'
+###   @11='???뚯쓬 - ?섎━鍮?2留뚯썝 ?덈궡??
+###   @12='??
+###   @13=''
+###   @14=NULL
+###   @15=NULL
+###   @16=NULL
+###   @17=NULL
+###   @18='2026-01-28 04:18:21.239'
+###   @19='2026-01-28 04:18:21.242'
+###   @20=NULL
+###   @21=NULL
+###   @22=NULL
+###   @23='2026-01-28 04:18:21.242'
+###   @24='2026-01-28 04:18:21.242'
+###   @25=''
+###   @26=''
+###   @27='遺?곗떆 ?숇옒援?李⑤강怨⑤줈 24 ?꾩씠?덉뒪 501??
+###   @28='010-3859-6284'
+###   @29=NULL
+###   @30=NULL
+###   @31=NULL
+###   @32=NULL
+###   @33=''
+###   @34=NULL
+###   @35=''
+###   @1='cmkxim0u100025z7hxqpr178o'
+###   @2='AS-20260128-001'
+###   @3='AS-20260128-001'
+###   @4='cmkxim0tt00005z7htm9x1j3p'
+###   @5=NULL
+###   @6='?대???
+###   @7='REPAIR'
+###   @8='NOISE'
+###   @9='AS'
+###   @10='NORMAL'
+###   @11='???뚯쓬 - ?섎━鍮?2留뚯썝 ?덈궡??
+###   @12='??
+###   @13=''
+###   @14=NULL
+###   @15=NULL
+###   @16=NULL
+###   @17=NULL
+###   @18='2026-01-28 04:18:21.239'
+###   @19='2026-01-28 04:18:21.242'
+###   @20=NULL
+###   @21=NULL
+###   @22=NULL
+###   @23='2026-01-28 04:18:21.242'
+###   @24='2026-01-28 04:18:35.136'
+###   @25=''
+###   @26=''
+###   @27='遺?곗떆 ?숇옒援?李⑤강怨⑤줈 24 ?꾩씠?덉뒪 501??
+###   @28='010-3859-6284'
+###   @29=NULL
+###   @30='2026-01-28 00:00:00.000'
+###   @31=NULL
+###   @32=NULL
+###   @33=''
+###   @34=NULL
+###   @35=''
+#260128 13:18:35 server id 1  end_log_pos 2958 CRC32 0x8c2912f4 	Xid = 1425
+#260128 13:18:48 server id 1  end_log_pos 3037 CRC32 0xcae9def4 	Anonymous_GTID	last_committed=4	sequence_number=5	rbr_
+only=yes	original_committed_timestamp=1769573928388678	immediate_commit_timestamp=1769573928388678	transaction_length=1
+007
+#260128 13:18:48 server id 1  end_log_pos 3135 CRC32 0x1f4f8445 	Query	thread_id=73	exec_time=0	error_code=0
+#260128 13:18:48 server id 1  end_log_pos 3294 CRC32 0x561cfa43 	Table_map: `crm_ai_web`.`afterservice` mapped to numbe
+r 103
+#260128 13:18:48 server id 1  end_log_pos 3934 CRC32 0x191adfa8 	Update_rows: table id 103 flags: STMT_END_F
+### UPDATE `crm_ai_web`.`afterservice`
+###   @1='cmkxim0u100025z7hxqpr178o'
+###   @2='AS-20260128-001'
+###   @3='AS-20260128-001'
+###   @4='cmkxim0tt00005z7htm9x1j3p'
+###   @5=NULL
+###   @6='?대???
+###   @7='REPAIR'
+###   @8='NOISE'
+###   @9='AS'
+###   @10='NORMAL'
+###   @11='???뚯쓬 - ?섎━鍮?2留뚯썝 ?덈궡??
+###   @12='??
+###   @13=''
+###   @14=NULL
+###   @15=NULL
+###   @16=NULL
+###   @17=NULL
+###   @18='2026-01-28 04:18:21.239'
+###   @19='2026-01-28 04:18:21.242'
+###   @20=NULL
+
+
