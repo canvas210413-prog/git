@@ -25,7 +25,7 @@ import {
 import { updateOrder, deleteOrder } from "@/app/actions/orders";
 import { updateOrderDeliveryStatus } from "@/app/actions/delivery";
 import { getAfterServiceById } from "@/app/actions/after-service";
-import { Pencil, Save, X, Trash2, Package, Truck, MapPin, Home, CheckCircle, RefreshCw, Wrench, Calendar, AlertCircle, Filter, Search, RotateCcw, Settings2, Eye, EyeOff } from "lucide-react";
+import { Pencil, Save, X, Trash2, Package, Truck, MapPin, Home, CheckCircle, RefreshCw, Wrench, Calendar, AlertCircle, Filter, Search, RotateCcw, Settings2, Eye, EyeOff, XCircle } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -46,37 +46,37 @@ import { OrderSearchFilter } from "./order-search-filter";
 import { EditOrderDialog } from "./edit-order-dialog";
 import { ASRequestDialog } from "./as-request-dialog";
 
-// 컬럼 정의
+// 컬럼 ?�의
 const ALL_COLUMNS = [
-  { id: "orderDate", label: "날짜", width: "w-[100px]", default: true },
-  { id: "recipientName", label: "고객명", width: "w-[100px]", default: true },
-  { id: "recipientPhone", label: "전화번호", width: "w-[120px]", default: true },
-  { id: "recipientMobile", label: "이동통신", width: "w-[120px]", default: true },
-  { id: "recipientZipCode", label: "우편번호", width: "w-[100px]", default: true },
+  { id: "orderDate", label: "?�짜", width: "w-[100px]", default: true },
+  { id: "recipientName", label: "고객�?, width: "w-[100px]", default: true },
+  { id: "recipientPhone", label: "?�화번호", width: "w-[120px]", default: true },
+  { id: "recipientMobile", label: "?�동?�신", width: "w-[120px]", default: true },
+  { id: "recipientZipCode", label: "?�편번호", width: "w-[100px]", default: true },
   { id: "recipientAddr", label: "주소", width: "w-[180px]", default: true },
   { id: "orderNumber", label: "주문번호", width: "w-[120px]", default: true },
-  { id: "productInfo", label: "상품명 및 수량", width: "w-[150px]", default: true },
+  { id: "productInfo", label: "?�품�?�??�량", width: "w-[150px]", default: true },
   { id: "deliveryMsg", label: "배송메시지", width: "w-[150px]", default: true },
   { id: "orderSource", label: "고객주문처명", width: "w-[100px]", default: true },
-  { id: "basePrice", label: "단가", width: "w-[100px]", default: true },
-  { id: "shippingFee", label: "배송비", width: "w-[100px]", default: true },
-  { id: "courier", label: "택배사", width: "w-[100px]", default: true },
-  { id: "trackingNumber", label: "운송장번호", width: "w-[120px]", default: true },
-  { id: "giftSent", label: "사은품발송", width: "w-[100px]", default: true },
+  { id: "basePrice", label: "?��?", width: "w-[100px]", default: true },
+  { id: "shippingFee", label: "배송�?, width: "w-[100px]", default: true },
+  { id: "courier", label: "?�배??, width: "w-[100px]", default: true },
+  { id: "trackingNumber", label: "?�송?�번??, width: "w-[120px]", default: true },
+  { id: "giftSent", label: "?��??�발??, width: "w-[100px]", default: true },
 ] as const;
 
 type ColumnId = typeof ALL_COLUMNS[number]["id"];
 
-// 배송 상태 5단계 정의
+// 배송 ?�태 5?�계 ?�의
 const DELIVERY_STATUS_STEPS = [
-  { key: "PICKED_UP", label: "상품인수", icon: Package },
-  { key: "IN_TRANSIT", label: "상품이동중", icon: Truck },
-  { key: "ARRIVED", label: "배송지도착", icon: MapPin },
+  { key: "PICKED_UP", label: "?�품?�수", icon: Package },
+  { key: "IN_TRANSIT", label: "?�품?�동�?, icon: Truck },
+  { key: "ARRIVED", label: "배송지?�착", icon: MapPin },
   { key: "OUT_FOR_DELIVERY", label: "배송출발", icon: Home },
-  { key: "DELIVERED", label: "배송완료", icon: CheckCircle },
+  { key: "DELIVERED", label: "배송?�료", icon: CheckCircle },
 ];
 
-// 배송 상태 진행 표시 컴포넌트
+// 배송 ?�태 진행 ?�시 컴포?�트
 function DeliveryStatusProgress({ status }: { status: string | null }) {
   if (!status || status === "PENDING") {
     return <span className="text-gray-400 text-xs">-</span>;
@@ -116,15 +116,15 @@ function DeliveryStatusProgress({ status }: { status: string | null }) {
   );
 }
 
-// 배송 상태 뱃지 컴포넌트
+// 배송 ?�태 뱃�? 컴포?�트
 function DeliveryStatusBadge({ status }: { status: string | null }) {
   const statusConfig: Record<string, { label: string; className: string }> = {
-    PENDING: { label: "대기", className: "bg-gray-100 text-gray-600" },
-    PICKED_UP: { label: "상품인수", className: "bg-blue-100 text-blue-700" },
-    IN_TRANSIT: { label: "상품이동중", className: "bg-indigo-100 text-indigo-700" },
-    ARRIVED: { label: "배송지도착", className: "bg-purple-100 text-purple-700" },
+    PENDING: { label: "?��?, className: "bg-gray-100 text-gray-600" },
+    PICKED_UP: { label: "?�품?�수", className: "bg-blue-100 text-blue-700" },
+    IN_TRANSIT: { label: "?�품?�동�?, className: "bg-indigo-100 text-indigo-700" },
+    ARRIVED: { label: "배송지?�착", className: "bg-purple-100 text-purple-700" },
     OUT_FOR_DELIVERY: { label: "배송출발", className: "bg-orange-100 text-orange-700" },
-    DELIVERED: { label: "배송완료", className: "bg-green-100 text-green-700" },
+    DELIVERED: { label: "배송?�료", className: "bg-green-100 text-green-700" },
   };
 
   const config = statusConfig[status || "PENDING"] || statusConfig.PENDING;
@@ -147,10 +147,10 @@ export function OrdersTable({
 }) {
   const { data: session } = useSession();
   
-  // 현재 사용자의 협력사 정보 (null이면 본사 - 전체 접근)
+  // ?�재 ?�용?�의 ?�력???�보 (null?�면 본사 - ?�체 ?�근)
   const userPartner = (session?.user as { assignedPartner?: string | null })?.assignedPartner || null;
   
-  // 날짜순 정렬 함수
+  // ?�짜???�렬 ?�수
   const sortOrdersByDate = (orderList: any[]) => {
     return [...orderList].sort((a, b) => {
       return new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime();
@@ -162,7 +162,7 @@ export function OrdersTable({
   const [editData, setEditData] = useState<any>({});
   const [isPending, startTransition] = useTransition();
   
-  // 외부에서 전달된 selectedOrderIds를 사용하거나, 내부 상태 사용
+  // ?��??�서 ?�달??selectedOrderIds�??�용?�거?? ?��? ?�태 ?�용
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<string>>(new Set());
   const selectedIds = selectedOrderIds || internalSelectedIds;
   const setSelectedIds = onSelectionChange || setInternalSelectedIds;
@@ -173,7 +173,7 @@ export function OrdersTable({
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
-  // 컬럼 표시 상태 (로컬스토리지에서 복원 또는 기본값 사용)
+  // 컬럼 ?�시 ?�태 (로컬?�토리�??�서 복원 ?�는 기본�??�용)
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnId>>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem(`orders-columns-${userPartner || "headquarters"}`);
@@ -181,15 +181,15 @@ export function OrdersTable({
         try {
           return new Set(JSON.parse(saved) as ColumnId[]);
         } catch {
-          // 파싱 실패시 기본값 사용
+          // ?�싱 ?�패??기본�??�용
         }
       }
     }
-    // 기본 표시 컬럼
+    // 기본 ?�시 컬럼
     return new Set(ALL_COLUMNS.filter(col => col.default).map(col => col.id));
   });
 
-  // 컬럼 표시 상태 변경 시 로컬스토리지에 저장
+  // 컬럼 ?�시 ?�태 변�???로컬?�토리�????�??
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem(
@@ -199,7 +199,7 @@ export function OrdersTable({
     }
   }, [visibleColumns, userPartner]);
 
-  // 컬럼 토글 핸들러
+  // 컬럼 ?��? ?�들??
   const toggleColumn = (columnId: ColumnId) => {
     setVisibleColumns(prev => {
       const next = new Set(prev);
@@ -212,27 +212,31 @@ export function OrdersTable({
     });
   };
 
-  // 모든 컬럼 표시
+  // 모든 컬럼 ?�시
   const showAllColumns = () => {
     setVisibleColumns(new Set(ALL_COLUMNS.map(col => col.id)));
   };
 
-  // 기본 컬럼만 표시
+  // 기본 컬럼�??�시
   const resetColumns = () => {
     setVisibleColumns(new Set(ALL_COLUMNS.filter(col => col.default).map(col => col.id)));
   };
 
-  // 주문 수정 팝업 상태
+  // 주문 ?�정 ?�업 ?�태
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editDialogMode, setEditDialogMode] = useState<"view" | "edit" | "create">("edit");
   const [selectedOrderForEdit, setSelectedOrderForEdit] = useState<any>(null);
   
-  // 에러 다이얼로그 상태
+  // ?�러 ?�이?�로�??�태
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // 검색 및 필터 상태
-  // 협력사 사용자는 자신의 업체로 초기화
+  // ������ȣ �ϰ� ���� ����
+  const [clearTrackingDialogOpen, setClearTrackingDialogOpen] = useState(false);
+  const [clearingTracking, setClearingTracking] = useState(false);
+
+  // 검??�??�터 ?�태
+  // ?�력???�용?�는 ?�신???�체�?초기??
   const [orderSource, setOrderSource] = useState("all");
   const [searchName, setSearchName] = useState("");
   const [searchPhone, setSearchPhone] = useState("");
@@ -242,10 +246,10 @@ export function OrdersTable({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
 
-  // 허용된 고객주문처명 목록
-  const ALL_ORDER_SOURCES = ["본사", "로켓그로스", "그로트", "스몰닷", "해피포즈", "기타"];
+  // ?�용??고객주문처명 목록
+  const ALL_ORDER_SOURCES = ["본사", "로켓그로??, "그로??, "?�몰??, "?�피?�즈", "기�?"];
   
-  // 협력사 사용자는 자신의 업체만 표시
+  // ?�력???�용?�는 ?�신???�체�??�시
   const ALLOWED_ORDER_SOURCES = useMemo(() => {
     if (userPartner) {
       return [userPartner];
@@ -253,29 +257,29 @@ export function OrdersTable({
     return ALL_ORDER_SOURCES;
   }, [userPartner]);
   
-  // 협력사 사용자는 업체 필터 자동 설정
+  // ?�력???�용?�는 ?�체 ?�터 ?�동 ?�정
   useEffect(() => {
     if (userPartner && orderSource === "all") {
       setOrderSource(userPartner);
     }
   }, [userPartner]);
 
-  // props 변경 시 정렬하여 상태 업데이트
+  // props 변�????�렬?�여 ?�태 ?�데?�트
   useEffect(() => {
     setOrders(sortOrdersByDate(initialOrders));
   }, [initialOrders]);
 
-  // 검색 및 필터링
+  // 검??�??�터�?
   const filteredOrders = orders.filter((order) => {
-    // 고객주문처명 필터
+    // 고객주문처명 ?�터
     if (orderSource !== "all") {
-      const source = order.orderSource || "자사몰";
+      const source = order.orderSource || "?�사�?;
       if (source !== orderSource) {
         return false;
       }
     }
 
-    // 수취인명 검색
+    // ?�취?�명 검??
     if (searchName.trim()) {
       const name = order.recipientName || "";
       if (!name.toLowerCase().includes(searchName.toLowerCase().trim())) {
@@ -283,7 +287,7 @@ export function OrdersTable({
       }
     }
 
-    // 전화번호 검색
+    // ?�화번호 검??
     if (searchPhone.trim()) {
       const phone = order.recipientPhone || order.recipientMobile || "";
       if (!phone.includes(searchPhone.trim())) {
@@ -291,7 +295,7 @@ export function OrdersTable({
       }
     }
 
-    // 날짜 필터
+    // ?�짜 ?�터
     const orderDate = new Date(order.orderDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -332,13 +336,13 @@ export function OrdersTable({
     return true;
   });
 
-  // 페이지네이션 계산
+  // ?�이지?�이??계산
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedOrders = filteredOrders.slice(startIndex, endIndex);
 
-  // 검색 초기화
+  // 검??초기??
   const handleResetSearch = () => {
     setOrderSource("all");
     setSearchName("");
@@ -349,13 +353,77 @@ export function OrdersTable({
     setCurrentPage(1);
   };
 
-  // 페이지 변경
+  // ?�송?�번???�괄 ??�� ?�들??
+  const handleClearTrackingNumbers = async () => {
+    if (selectedIds.size === 0) {
+      alert("?�송?�번?��? ??��??주문???�택?�주?�요.");
+      return;
+    }
+
+    // ?�송?�번?��? ?�는 ??���??�터�?
+    const ordersWithTracking = orders.filter(
+      o => selectedIds.has(o.id) && o.trackingNumber
+    );
+
+    if (ordersWithTracking.length === 0) {
+      alert("?�택??주문 �??�송?�번?��? ?�력????��???�습?�다.");
+      return;
+    }
+
+    setClearTrackingDialogOpen(true);
+  };
+
+  // ?�송?�번????�� ?�인
+  const confirmClearTracking = async () => {
+    try {
+      setClearingTracking(true);
+
+      const response = await fetch("/api/orders/clear-tracking", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderIds: Array.from(selectedIds) }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "?�송?�번????��???�패?�습?�다.");
+      }
+
+      if (data.success) {
+        // 로컬 ?�태 ?�데?�트
+        setOrders(prevOrders =>
+          prevOrders.map(order =>
+            selectedIds.has(order.id) && order.trackingNumber
+              ? { ...order, trackingNumber: null, courier: null }
+              : order
+          )
+        );
+
+        // ?�택 ?�제
+        setSelectedIds(new Set());
+
+        alert(data.message);
+        setClearTrackingDialogOpen(false);
+      } else {
+        alert(data.message || "?�송?�번?��? ?�력??주문???�습?�다.");
+      }
+    } catch (error) {
+      console.error("?�송?�번????�� ?�류:", error);
+      alert(error instanceof Error ? error.message : "?�송?�번????�� �??�류가 발생?�습?�다.");
+    } finally {
+      setClearingTracking(false);
+    }
+  };
+
+
+  // ?�이지 변�?
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // 페이지당 항목 수 변경
+  // ?�이지????�� ??변�?
   const handleItemsPerPageChange = (value: string) => {
     setItemsPerPage(Number(value));
     setCurrentPage(1);
@@ -391,10 +459,10 @@ export function OrdersTable({
 
   const saveEdit = async (orderId: string) => {
     startTransition(async () => {
-      // 숫자 필드 변환
+      // ?�자 ?�드 변??
       const updateData: any = { ...editData };
       
-      // 숫자 필드를 명시적으로 변환
+      // ?�자 ?�드�?명시?�으�?변??
       if (updateData.basePrice !== undefined) {
         updateData.basePrice = Number(updateData.basePrice) || 0;
       }
@@ -418,24 +486,24 @@ export function OrdersTable({
       console.log("[saveEdit] Result:", result);
       
       if (result.success) {
-        // 성공 시 편집 모드 종료 및 상태 초기화
+        // ?�공 ???�집 모드 종료 �??�태 초기??
         setEditingId(null);
         setEditData({});
         
-        // 페이지 새로고침
+        // ?�이지 ?�로고침
         window.location.reload();
       } else {
-        // 실패 시 에러 메시지 표시
+        // ?�패 ???�러 메시지 ?�시
         const errorDetails = result.error?.details 
-          ? `\n상세: ${JSON.stringify(result.error.details, null, 2)}`
+          ? `\n?�세: ${JSON.stringify(result.error.details, null, 2)}`
           : "";
-        alert(`❌ 저장 실패: ${result.error?.message || "알 수 없는 오류"}${errorDetails}`);
+        alert(`???�???�패: ${result.error?.message || "?????�는 ?�류"}${errorDetails}`);
       }
     });
   };
 
   const handleDelete = async (orderId: string) => {
-    if (!confirm("정말 이 주문을 삭제하시겠습니까?")) return;
+    if (!confirm("?�말 ??주문????��?�시겠습?�까?")) return;
 
     startTransition(async () => {
       try {
@@ -443,20 +511,20 @@ export function OrdersTable({
         
         if (result.success) {
           setOrders(orders.filter((o) => o.id !== orderId));
-          alert("주문이 삭제되었습니다.");
+          alert("주문????��?�었?�니??");
         } else {
-          setErrorMessage(result.error?.message || "알 수 없는 오류");
+          setErrorMessage(result.error?.message || "?????�는 ?�류");
           setErrorDialogOpen(true);
         }
       } catch (error) {
         console.error("Delete failed:", error);
-        setErrorMessage(error instanceof Error ? error.message : "주문 삭제 중 오류가 발생했습니다.");
+        setErrorMessage(error instanceof Error ? error.message : "주문 ??�� �??�류가 발생?�습?�다.");
         setErrorDialogOpen(true);
       }
     });
   };
 
-  // 전체 선택/해제
+  // ?�체 ?�택/?�제
   const toggleSelectAll = () => {
     if (selectedIds.size === paginatedOrders.length) {
       setSelectedIds(new Set());
@@ -465,7 +533,7 @@ export function OrdersTable({
     }
   };
 
-  // 개별 선택/해제
+  // 개별 ?�택/?�제
   const toggleSelectOne = (id: string) => {
     const newSelected = new Set(selectedIds);
     if (newSelected.has(id)) {
@@ -476,11 +544,11 @@ export function OrdersTable({
     setSelectedIds(newSelected);
   };
 
-  // 다중 삭제
+  // ?�중 ??��
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
     
-    if (!confirm(`선택한 ${selectedIds.size}개의 주문을 삭제하시겠습니까?`)) {
+    if (!confirm(`?�택??${selectedIds.size}개의 주문????��?�시겠습?�까?`)) {
       return;
     }
 
@@ -489,7 +557,7 @@ export function OrdersTable({
         const deletePromises = Array.from(selectedIds).map(id => deleteOrder(id));
         const results = await Promise.all(deletePromises);
         
-        // 성공한 것만 필터링
+        // ?�공??것만 ?�터�?
         const successIds = Array.from(selectedIds).filter((id, idx) => results[idx].success);
         const failedCount = selectedIds.size - successIds.length;
         
@@ -500,13 +568,13 @@ export function OrdersTable({
         setSelectedIds(new Set());
         
         if (failedCount === 0) {
-          alert(`${successIds.length}개의 주문이 삭제되었습니다.`);
+          alert(`${successIds.length}개의 주문????��?�었?�니??`);
         } else {
-          alert(`${successIds.length}개 삭제 성공, ${failedCount}개 실패`);
+          alert(`${successIds.length}�???�� ?�공, ${failedCount}�??�패`);
         }
       } catch (error) {
         console.error("Bulk delete failed:", error);
-        alert("일부 주문 삭제에 실패했습니다.");
+        alert("?��? 주문 ??��???�패?�습?�다.");
       }
     });
   };
@@ -531,20 +599,20 @@ export function OrdersTable({
       const result = await updateOrderDeliveryStatus(orderId);
       
       if (result.success) {
-        alert("✅ 배송 정보가 업데이트되었습니다");
+        alert("??배송 ?�보가 ?�데?�트?�었?�니??);
         window.location.reload();
       } else {
-        alert("❌ " + (result.error || "배송 정보 조회 실패"));
+        alert("??" + (result.error || "배송 ?�보 조회 ?�패"));
       }
     });
   };
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, any> = {
-      PENDING: { variant: "secondary", label: "대기" },
-      PROCESSING: { variant: "default", label: "처리중" },
-      SHIPPED: { variant: "outline", label: "배송중" },
-      DELIVERED: { variant: "outline", label: "배송완료" },
+      PENDING: { variant: "secondary", label: "?��? },
+      PROCESSING: { variant: "default", label: "처리�? },
+      SHIPPED: { variant: "outline", label: "배송�? },
+      DELIVERED: { variant: "outline", label: "배송?�료" },
       CANCELLED: { variant: "destructive", label: "취소" },
     };
     const config = variants[status] || { variant: "default", label: status };
@@ -557,7 +625,7 @@ export function OrdersTable({
 
   return (
     <div className="space-y-4">
-      {/* 검색 및 필터 영역 */}
+      {/* 검??�??�터 ?�역 */}
       <OrderSearchFilter
         searchName={searchName}
         setSearchName={setSearchName}
@@ -582,19 +650,32 @@ export function OrdersTable({
         disableOrderSourceFilter={!!userPartner}
       />
 
-      {/* 테이블 */}
+      {/* ?�이�?*/}
       <div className="rounded-md border">
-        {/* 컬럼 설정 버튼 */}
+        {/* 컬럼 ?�정 버튼 */}
         <div className="flex justify-end p-2 border-b bg-gray-50">
+        {/* ?�택????��???�송?�번???�괄 ??�� */}
+        {selectedIds.size > 0 && (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleClearTrackingNumbers}
+            className="gap-2"
+          >
+            <XCircle className="h-4 w-4" />
+            ?�송?�번???�괄 ??�� ({selectedIds.size})
+          </Button>
+        )}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2">
                 <Settings2 className="h-4 w-4" />
-                컬럼 설정
+                컬럼 ?�정
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>표시할 컬럼 선택</DropdownMenuLabel>
+              <DropdownMenuLabel>?�시??컬럼 ?�택</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {ALL_COLUMNS.map((column) => (
                 <DropdownMenuCheckboxItem
@@ -608,10 +689,10 @@ export function OrdersTable({
               <DropdownMenuSeparator />
               <div className="flex gap-1 px-2 py-1">
                 <Button variant="outline" size="sm" onClick={showAllColumns} className="flex-1 text-xs">
-                  전체 표시
+                  ?�체 ?�시
                 </Button>
                 <Button variant="outline" size="sm" onClick={resetColumns} className="flex-1 text-xs">
-                  기본값
+                  기본�?
                 </Button>
               </div>
             </DropdownMenuContent>
@@ -619,7 +700,7 @@ export function OrdersTable({
         </div>
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded">
-            <span className="text-sm font-medium">{selectedIds.size}개 선택됨</span>
+            <span className="text-sm font-medium">{selectedIds.size}�??�택??/span>
             <Button 
               onClick={handleBulkDelete} 
               variant="destructive" 
@@ -627,7 +708,7 @@ export function OrdersTable({
               disabled={isPending}
             >
               <Trash2 className="mr-2 h-4 w-4" />
-              선택 삭제
+              ?�택 ??��
             </Button>
           </div>
         )}
@@ -641,23 +722,23 @@ export function OrdersTable({
                     onCheckedChange={toggleSelectAll}
                   />
                 </TableHead>
-                {visibleColumns.has("orderDate") && <TableHead className="w-[100px]">날짜</TableHead>}
-                {visibleColumns.has("recipientName") && <TableHead>고객명</TableHead>}
-                {visibleColumns.has("recipientPhone") && <TableHead>전화번호</TableHead>}
-                {visibleColumns.has("recipientMobile") && <TableHead>이동통신</TableHead>}
-                {visibleColumns.has("recipientZipCode") && <TableHead>우편번호</TableHead>}
+                {visibleColumns.has("orderDate") && <TableHead className="w-[100px]">?�짜</TableHead>}
+                {visibleColumns.has("recipientName") && <TableHead>고객�?/TableHead>}
+                {visibleColumns.has("recipientPhone") && <TableHead>?�화번호</TableHead>}
+                {visibleColumns.has("recipientMobile") && <TableHead>?�동?�신</TableHead>}
+                {visibleColumns.has("recipientZipCode") && <TableHead>?�편번호</TableHead>}
                 {visibleColumns.has("recipientAddr") && <TableHead>주소</TableHead>}
                 {visibleColumns.has("orderNumber") && <TableHead>주문번호</TableHead>}
-                {visibleColumns.has("productInfo") && <TableHead>상품명 및 수량</TableHead>}
+                {visibleColumns.has("productInfo") && <TableHead>?�품�?�??�량</TableHead>}
                 {visibleColumns.has("deliveryMsg") && <TableHead>배송메시지</TableHead>}
                 {visibleColumns.has("orderSource") && <TableHead>고객주문처명</TableHead>}
-                {visibleColumns.has("basePrice") && <TableHead>단가</TableHead>}
-                {visibleColumns.has("shippingFee") && <TableHead>배송비</TableHead>}
-                {visibleColumns.has("courier") && <TableHead>택배사</TableHead>}
-                {visibleColumns.has("trackingNumber") && <TableHead>운송장번호</TableHead>}
-                {visibleColumns.has("giftSent") && <TableHead className="text-center">사은품발송</TableHead>}
-                <TableHead className="text-center">AS요청</TableHead>
-                <TableHead className="w-[120px] text-right">작업</TableHead>
+                {visibleColumns.has("basePrice") && <TableHead>?��?</TableHead>}
+                {visibleColumns.has("shippingFee") && <TableHead>배송�?/TableHead>}
+                {visibleColumns.has("courier") && <TableHead>?�배??/TableHead>}
+                {visibleColumns.has("trackingNumber") && <TableHead>?�송?�번??/TableHead>}
+                {visibleColumns.has("giftSent") && <TableHead className="text-center">?��??�발??/TableHead>}
+                <TableHead className="text-center">AS?�청</TableHead>
+                <TableHead className="w-[120px] text-right">?�업</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -665,8 +746,8 @@ export function OrdersTable({
               <TableRow>
                 <TableCell colSpan={16} className="h-24 text-center">
                   {filteredOrders.length === 0 && orders.length > 0 
-                    ? "검색 결과가 없습니다." 
-                    : "등록된 주문이 없습니다."
+                    ? "검??결과가 ?�습?�다." 
+                    : "?�록??주문???�습?�다."
                   }
                 </TableCell>
               </TableRow>
@@ -682,7 +763,7 @@ export function OrdersTable({
                         onCheckedChange={() => toggleSelectOne(order.id)}
                       />
                     </TableCell>
-                    {/* 날짜 */}
+                    {/* ?�짜 */}
                     {visibleColumns.has("orderDate") && (
                     <TableCell>
                       {isEditing ? (
@@ -700,7 +781,7 @@ export function OrdersTable({
                     </TableCell>
                     )}
 
-                    {/* 수취인명 */}
+                    {/* ?�취?�명 */}
                     {visibleColumns.has("recipientName") && (
                     <TableCell>
                       {isEditing ? (
@@ -725,7 +806,7 @@ export function OrdersTable({
                     </TableCell>
                     )}
 
-                    {/* 수취인 전화번호 */}
+                    {/* ?�취???�화번호 */}
                     {visibleColumns.has("recipientPhone") && (
                     <TableCell>
                       {isEditing ? (
@@ -742,7 +823,7 @@ export function OrdersTable({
                     </TableCell>
                     )}
 
-                    {/* 수취인 이동통신 */}
+                    {/* ?�취???�동?�신 */}
                     {visibleColumns.has("recipientMobile") && (
                     <TableCell>
                       {isEditing ? (
@@ -759,7 +840,7 @@ export function OrdersTable({
                     </TableCell>
                     )}
 
-                    {/* 수취인 우편번호 */}
+                    {/* ?�취???�편번호 */}
                     {visibleColumns.has("recipientZipCode") && (
                     <TableCell>
                       {isEditing ? (
@@ -776,7 +857,7 @@ export function OrdersTable({
                     </TableCell>
                     )}
 
-                    {/* 수취인 주소 */}
+                    {/* ?�취??주소 */}
                     {visibleColumns.has("recipientAddr") && (
                     <TableCell>
                       {isEditing ? (
@@ -812,7 +893,7 @@ export function OrdersTable({
                     </TableCell>
                     )}
 
-                    {/* 상품명 및 수량 */}
+                    {/* ?�품�?�??�량 */}
                     {visibleColumns.has("productInfo") && (
                     <TableCell>
                       {isEditing ? (
@@ -865,11 +946,11 @@ export function OrdersTable({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="자사몰">자사몰</SelectItem>
-                            <SelectItem value="스몰닷">스몰닷</SelectItem>
-                            <SelectItem value="쇼핑몰">쇼핑몰</SelectItem>
-                            <SelectItem value="그로트">그로트</SelectItem>
-                            <SelectItem value="해피포즈">해피포즈</SelectItem>
+                            <SelectItem value="?�사�?>?�사�?/SelectItem>
+                            <SelectItem value="?�몰??>?�몰??/SelectItem>
+                            <SelectItem value="?�핑�?>?�핑�?/SelectItem>
+                            <SelectItem value="그로??>그로??/SelectItem>
+                            <SelectItem value="?�피?�즈">?�피?�즈</SelectItem>
                           </SelectContent>
                         </Select>
                       ) : (
@@ -878,7 +959,7 @@ export function OrdersTable({
                     </TableCell>
                     )}
 
-                    {/* 단가 */}
+                    {/* ?��? */}
                     {visibleColumns.has("basePrice") && (
                     <TableCell>
                       {isEditing ? (
@@ -899,7 +980,7 @@ export function OrdersTable({
                     </TableCell>
                     )}
 
-                    {/* 배송비 */}
+                    {/* 배송�?*/}
                     {visibleColumns.has("shippingFee") && (
                     <TableCell>
                       {isEditing ? (
@@ -917,7 +998,7 @@ export function OrdersTable({
                     </TableCell>
                     )}
 
-                    {/* 택배사 */}
+                    {/* ?�배??*/}
                     {visibleColumns.has("courier") && (
                     <TableCell>
                       {isEditing ? (
@@ -934,7 +1015,7 @@ export function OrdersTable({
                     </TableCell>
                     )}
 
-                    {/* 운송장번호 */}
+                    {/* ?�송?�번??*/}
                     {visibleColumns.has("trackingNumber") && (
                     <TableCell>
                       {isEditing ? (
@@ -951,7 +1032,7 @@ export function OrdersTable({
                     </TableCell>
                     )}
 
-                    {/* 사은품 발송 */}
+                    {/* ?��???발송 */}
                     {visibleColumns.has("giftSent") && (
                     <TableCell className="text-center">
                       {isEditing ? (
@@ -961,7 +1042,7 @@ export function OrdersTable({
                           onClick={() => setEditData({ ...editData, giftSent: !editData.giftSent })}
                           className={`h-7 px-2 text-xs ${editData.giftSent ? "bg-green-600 hover:bg-green-700" : ""}`}
                         >
-                          {editData.giftSent ? "발송" : "미발송"}
+                          {editData.giftSent ? "발송" : "미발??}
                         </Button>
                       ) : (
                         <Button
@@ -971,77 +1052,77 @@ export function OrdersTable({
                             const debugInfo: string[] = [];
                             const timestamp = new Date().toISOString();
                             
-                            debugInfo.push(`🕒 시작 시간: ${timestamp}`);
-                            debugInfo.push(`📦 주문 ID: ${order.id}`);
-                            debugInfo.push(`👤 고객명: ${order.recipientName}`);
-                            debugInfo.push(`📋 이전 상태: ${order.giftSent ? '발송' : '미발송'}`);
+                            debugInfo.push(`?�� ?�작 ?�간: ${timestamp}`);
+                            debugInfo.push(`?�� 주문 ID: ${order.id}`);
+                            debugInfo.push(`?�� 고객�? ${order.recipientName}`);
+                            debugInfo.push(`?�� ?�전 ?�태: ${order.giftSent ? '발송' : '미발??}`);
                             
                             const newValue = !order.giftSent;
                             const previousValue = order.giftSent;
                             
-                            debugInfo.push(`📋 새 상태: ${newValue ? '발송' : '미발송'}`);
+                            debugInfo.push(`?�� ???�태: ${newValue ? '발송' : '미발??}`);
                             
                             try {
-                              // 즉시 UI 업데이트 (낙관적 업데이트)
-                              debugInfo.push(`✅ UI 낙관적 업데이트 시작`);
+                              // 즉시 UI ?�데?�트 (?��????�데?�트)
+                              debugInfo.push(`??UI ?��????�데?�트 ?�작`);
                               setOrders(prevOrders => {
                                 const updated = prevOrders.map(o => o.id === order.id ? { ...o, giftSent: newValue } : o);
-                                debugInfo.push(`📊 업데이트된 주문 수: ${updated.filter(o => o.id === order.id).length}`);
+                                debugInfo.push(`?�� ?�데?�트??주문 ?? ${updated.filter(o => o.id === order.id).length}`);
                                 return updated;
                               });
                               
-                              // 비동기로 서버 업데이트
-                              debugInfo.push(`🌐 서버 업데이트 요청 시작...`);
-                              debugInfo.push(`📤 전송 데이터: { giftSent: ${newValue} }`);
+                              // 비동기로 ?�버 ?�데?�트
+                              debugInfo.push(`?�� ?�버 ?�데?�트 ?�청 ?�작...`);
+                              debugInfo.push(`?�� ?�송 ?�이?? { giftSent: ${newValue} }`);
                               
                               const startTime = performance.now();
                               const result = await updateOrder(order.id, { giftSent: newValue });
                               const endTime = performance.now();
                               const duration = (endTime - startTime).toFixed(2);
                               
-                              debugInfo.push(`⏱️ API 응답 시간: ${duration}ms`);
-                              debugInfo.push(`📥 응답: ${JSON.stringify(result, null, 2)}`);
+                              debugInfo.push(`?�️ API ?�답 ?�간: ${duration}ms`);
+                              debugInfo.push(`?�� ?�답: ${JSON.stringify(result, null, 2)}`);
                               
-                              // 실패 시 롤백
+                              // ?�패 ??롤백
                               if (!result.success) {
-                                debugInfo.push(`❌ 업데이트 실패!`);
-                                debugInfo.push(`🔙 롤백 수행 중...`);
+                                debugInfo.push(`???�데?�트 ?�패!`);
+                                debugInfo.push(`?�� 롤백 ?�행 �?..`);
                                 setOrders(prevOrders =>
                                   prevOrders.map(o => o.id === order.id ? { ...o, giftSent: previousValue } : o)
                                 );
-                                debugInfo.push(`🔙 롤백 완료`);
+                                debugInfo.push(`?�� 롤백 ?�료`);
                                 
                                 if (result.error) {
-                                  debugInfo.push(`❌ 에러 코드: ${result.error.code}`);
-                                  debugInfo.push(`❌ 에러 메시지: ${result.error.message}`);
+                                  debugInfo.push(`???�러 코드: ${result.error.code}`);
+                                  debugInfo.push(`???�러 메시지: ${result.error.message}`);
                                   if (result.error.details) {
-                                    debugInfo.push(`📋 에러 상세: ${JSON.stringify(result.error.details, null, 2)}`);
+                                    debugInfo.push(`?�� ?�러 ?�세: ${JSON.stringify(result.error.details, null, 2)}`);
                                   }
                                 }
                                 
-                                alert('🐛 디버깅 정보\n\n' + debugInfo.join('\n'));
+                                alert('?�� ?�버�??�보\n\n' + debugInfo.join('\n'));
                               } else {
-                                debugInfo.push(`✅ 업데이트 성공!`);
-                                console.log('✅ 사은품발송 업데이트 성공:', debugInfo.join('\n'));
+                                debugInfo.push(`???�데?�트 ?�공!`);
+                                console.log('???��??�발???�데?�트 ?�공:', debugInfo.join('\n'));
                               }
                             } catch (error) {
-                              debugInfo.push(`💥 예외 발생: ${error}`);
-                              debugInfo.push(`🔙 롤백 수행 중...`);
+                              debugInfo.push(`?�� ?�외 발생: ${error}`);
+                              debugInfo.push(`?�� 롤백 ?�행 �?..`);
                               setOrders(prevOrders =>
                                 prevOrders.map(o => o.id === order.id ? { ...o, giftSent: previousValue } : o)
                               );
-                              alert('🐛 디버깅 정보\n\n' + debugInfo.join('\n'));
+                              alert('?�� ?�버�??�보\n\n' + debugInfo.join('\n'));
                             }
                           }}
                           className={`h-7 px-2 text-xs ${order.giftSent ? "bg-green-600 hover:bg-green-700" : ""}`}
                         >
-                          {order.giftSent ? "발송" : "미발송"}
+                          {order.giftSent ? "발송" : "미발??}
                         </Button>
                       )}
                     </TableCell>
                     )}
 
-                    {/* AS요청 */}
+                    {/* AS?�청 */}
                     <TableCell className="text-center">
                       <Button
                         variant="ghost"
@@ -1051,13 +1132,13 @@ export function OrdersTable({
                           setAsDialogOpen(true);
                         }}
                         className="h-8 w-8 p-0"
-                        title="AS 요청"
+                        title="AS ?�청"
                       >
                         <Wrench className="h-4 w-4 text-purple-500" />
                       </Button>
                     </TableCell>
 
-                    {/* 작업 */}
+                    {/* ?�업 */}
                     <TableCell className="text-right">
                       {isEditing ? (
                         <div className="flex gap-1 justify-end">
@@ -1085,7 +1166,7 @@ export function OrdersTable({
                               variant="outline"
                               onClick={() => handleSyncDelivery(order.id)}
                               disabled={isPending}
-                              title="배송정보 연동"
+                              title="배송?�보 ?�동"
                             >
                               <RefreshCw className={`h-4 w-4 ${isPending ? 'animate-spin' : ''}`} />
                             </Button>
@@ -1098,7 +1179,7 @@ export function OrdersTable({
                               setEditDialogMode("edit");
                               setEditDialogOpen(true);
                             }}
-                            title="수정"
+                            title="?�정"
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -1107,7 +1188,7 @@ export function OrdersTable({
                             variant="ghost"
                             onClick={() => handleDelete(order.id)}
                             disabled={isPending}
-                            title="삭제"
+                            title="??��"
                           >
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
@@ -1122,11 +1203,11 @@ export function OrdersTable({
         </Table>
       </div>
 
-      {/* 페이지네이션 */}
+      {/* ?�이지?�이??*/}
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-md">
           <div className="text-sm text-gray-500">
-            {startIndex + 1} - {Math.min(endIndex, filteredOrders.length)} / 총 {filteredOrders.length}건
+            {startIndex + 1} - {Math.min(endIndex, filteredOrders.length)} / �?{filteredOrders.length}�?
           </div>
           <div className="flex items-center gap-1">
             <Button
@@ -1143,10 +1224,10 @@ export function OrdersTable({
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1}
             >
-              이전
+              ?�전
             </Button>
             
-            {/* 페이지 번호들 */}
+            {/* ?�이지 번호??*/}
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
               let pageNum;
               if (totalPages <= 5) {
@@ -1177,7 +1258,7 @@ export function OrdersTable({
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
             >
-              다음
+              ?�음
             </Button>
             <Button
               variant="outline"
@@ -1185,30 +1266,30 @@ export function OrdersTable({
               onClick={() => handlePageChange(totalPages)}
               disabled={currentPage === totalPages}
             >
-              마지막
+              마�?�?
             </Button>
           </div>
         </div>
       )}
     </div>
 
-      {/* AS 요청 다이얼로그 */}
+      {/* AS ?�청 ?�이?�로�?*/}
       <ASRequestDialog
         open={asDialogOpen}
         onOpenChange={setAsDialogOpen}
         order={asSelectedOrder}
       />
 
-      {/* AS 접수 정보 다이얼로그 */}
+      {/* AS ?�수 ?�보 ?�이?�로�?*/}
       <Dialog open={asDialogOpen && selectedAsInfo} onOpenChange={setAsDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Wrench className="h-5 w-5" />
-              AS 접수 상세 정보
+              AS ?�수 ?�세 ?�보
             </DialogTitle>
             <DialogDescription>
-              고객 A/S 접수 및 처리 내역을 확인할 수 있습니다.
+              고객 A/S ?�수 �?처리 ?�역???�인?????�습?�다.
             </DialogDescription>
           </DialogHeader>
 
@@ -1218,32 +1299,32 @@ export function OrdersTable({
             </div>
           ) : selectedAsInfo ? (
             <div className="space-y-6">
-              {/* 기본 정보 */}
+              {/* 기본 ?�보 */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-500">접수번호</label>
+                  <label className="text-sm font-medium text-gray-500">?�수번호</label>
                   <p className="text-base font-semibold">{selectedAsInfo.ticketNumber}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-500">접수일시</label>
+                  <label className="text-sm font-medium text-gray-500">?�수?�시</label>
                   <p className="text-base flex items-center gap-1">
                     <Calendar className="h-4 w-4" />
                     {new Date(selectedAsInfo.serviceDate).toLocaleString('ko-KR')}
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-500">고객명</label>
+                  <label className="text-sm font-medium text-gray-500">고객�?/label>
                   <p className="text-base font-semibold">{selectedAsInfo.customerName}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-500">연락처</label>
+                  <label className="text-sm font-medium text-gray-500">?�락�?/label>
                   <p className="text-base">{selectedAsInfo.customerPhone}</p>
                 </div>
               </div>
 
-              {/* 상태 */}
+              {/* ?�태 */}
               <div>
-                <label className="text-sm font-medium text-gray-500">처리 상태</label>
+                <label className="text-sm font-medium text-gray-500">처리 ?�태</label>
                 <div className="mt-1">
                   <Badge className={
                     selectedAsInfo.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
@@ -1251,72 +1332,72 @@ export function OrdersTable({
                     selectedAsInfo.status === 'CANCELLED' ? 'bg-gray-100 text-gray-800' :
                     'bg-yellow-100 text-yellow-800'
                   }>
-                    {selectedAsInfo.status === "RECEIVED" && "접수"}
-                    {selectedAsInfo.status === "DIAGNOSED" && "진단 중"}
-                    {selectedAsInfo.status === "PARTS_ORDERED" && "부품 발주"}
-                    {selectedAsInfo.status === "SCHEDULED" && "방문 예정"}
-                    {selectedAsInfo.status === "IN_PROGRESS" && "처리 중"}
-                    {selectedAsInfo.status === "COMPLETED" && "완료"}
+                    {selectedAsInfo.status === "RECEIVED" && "?�수"}
+                    {selectedAsInfo.status === "DIAGNOSED" && "진단 �?}
+                    {selectedAsInfo.status === "PARTS_ORDERED" && "부??발주"}
+                    {selectedAsInfo.status === "SCHEDULED" && "방문 ?�정"}
+                    {selectedAsInfo.status === "IN_PROGRESS" && "처리 �?}
+                    {selectedAsInfo.status === "COMPLETED" && "?�료"}
                     {selectedAsInfo.status === "CANCELLED" && "취소"}
                   </Badge>
                   <Badge variant="outline" className="ml-2">
                     {selectedAsInfo.priority === "URGENT" && "긴급"}
-                    {selectedAsInfo.priority === "HIGH" && "높음"}
+                    {selectedAsInfo.priority === "HIGH" && "?�음"}
                     {selectedAsInfo.priority === "NORMAL" && "보통"}
-                    {selectedAsInfo.priority === "LOW" && "낮음"}
+                    {selectedAsInfo.priority === "LOW" && "??��"}
                   </Badge>
                 </div>
               </div>
 
-              {/* 제품 정보 */}
+              {/* ?�품 ?�보 */}
               <div className="border-t pt-4">
                 <h4 className="font-semibold mb-3 flex items-center gap-2">
                   <Package className="h-4 w-4" />
-                  제품 정보
+                  ?�품 ?�보
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-500">제품명</label>
+                    <label className="text-sm font-medium text-gray-500">?�품�?/label>
                     <p className="text-base">{selectedAsInfo.productName || '-'}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-500">모델명</label>
+                    <label className="text-sm font-medium text-gray-500">모델�?/label>
                     <p className="text-base">{selectedAsInfo.modelNumber || '-'}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-500">시리얼번호</label>
+                    <label className="text-sm font-medium text-gray-500">?�리?�번??/label>
                     <p className="text-base font-mono text-sm">{selectedAsInfo.serialNumber || '-'}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-500">보증 상태</label>
+                    <label className="text-sm font-medium text-gray-500">보증 ?�태</label>
                     <p className="text-base">
-                      {selectedAsInfo.warrantyStatus === 'IN_WARRANTY' ? '보증기간 내' : '보증기간 외'}
+                      {selectedAsInfo.warrantyStatus === 'IN_WARRANTY' ? '보증기간 ?? : '보증기간 ??}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* 증상 및 문제 */}
+              {/* 증상 �?문제 */}
               <div className="border-t pt-4">
                 <h4 className="font-semibold mb-3 flex items-center gap-2">
                   <AlertCircle className="h-4 w-4" />
-                  증상 및 문제
+                  증상 �?문제
                 </h4>
                 <div className="space-y-3">
                   <div>
-                    <label className="text-sm font-medium text-gray-500">문제 유형</label>
+                    <label className="text-sm font-medium text-gray-500">문제 ?�형</label>
                     <p className="text-base">
-                      {selectedAsInfo.issueType === 'NOISE' && '소음'}
-                      {selectedAsInfo.issueType === 'FILTER' && '필터 교체'}
-                      {selectedAsInfo.issueType === 'POWER' && '전원 문제'}
-                      {selectedAsInfo.issueType === 'SENSOR' && '센서 오류'}
-                      {selectedAsInfo.issueType === 'PERFORMANCE' && '성능 저하'}
-                      {selectedAsInfo.issueType === 'ODOR' && '냄새'}
-                      {selectedAsInfo.issueType === 'OTHER' && '기타'}
+                      {selectedAsInfo.issueType === 'NOISE' && '?�음'}
+                      {selectedAsInfo.issueType === 'FILTER' && '?�터 교체'}
+                      {selectedAsInfo.issueType === 'POWER' && '?�원 문제'}
+                      {selectedAsInfo.issueType === 'SENSOR' && '?�서 ?�류'}
+                      {selectedAsInfo.issueType === 'PERFORMANCE' && '?�능 ?�??}
+                      {selectedAsInfo.issueType === 'ODOR' && '?�새'}
+                      {selectedAsInfo.issueType === 'OTHER' && '기�?'}
                     </p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-500">증상 설명</label>
+                    <label className="text-sm font-medium text-gray-500">증상 ?�명</label>
                     <p className="text-base bg-gray-50 p-3 rounded-md whitespace-pre-wrap">
                       {selectedAsInfo.issueDescription || selectedAsInfo.issueTitle || '-'}
                     </p>
@@ -1324,67 +1405,67 @@ export function OrdersTable({
                 </div>
               </div>
 
-              {/* 처리 내역 */}
+              {/* 처리 ?�역 */}
               {(selectedAsInfo.repairContent || selectedAsInfo.repairDetails) && (
                 <div className="border-t pt-4">
-                  <h4 className="font-semibold mb-3">수리 내역</h4>
+                  <h4 className="font-semibold mb-3">?�리 ?�역</h4>
                   <p className="text-base bg-gray-50 p-3 rounded-md whitespace-pre-wrap">
                     {selectedAsInfo.repairContent || selectedAsInfo.repairDetails}
                   </p>
                 </div>
               )}
 
-              {/* 배송 정보 */}
+              {/* 배송 ?�보 */}
               {(selectedAsInfo.courier || selectedAsInfo.trackingNumber) && (
                 <div className="border-t pt-4">
                   <h4 className="font-semibold mb-3 flex items-center gap-2">
                     <Truck className="h-4 w-4" />
-                    배송 정보
+                    배송 ?�보
                   </h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-sm font-medium text-gray-500">택배사</label>
+                      <label className="text-sm font-medium text-gray-500">?�배??/label>
                       <p className="text-base">{selectedAsInfo.courier || '-'}</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-500">운송장번호</label>
+                      <label className="text-sm font-medium text-gray-500">?�송?�번??/label>
                       <p className="text-base font-mono text-sm">{selectedAsInfo.trackingNumber || '-'}</p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* 비용 정보 */}
+              {/* 비용 ?�보 */}
               {(selectedAsInfo.totalCost > 0 || selectedAsInfo.laborCost > 0 || selectedAsInfo.partsCost > 0) && (
                 <div className="border-t pt-4">
-                  <h4 className="font-semibold mb-3">비용 정보</h4>
+                  <h4 className="font-semibold mb-3">비용 ?�보</h4>
                   <div className="grid grid-cols-3 gap-4">
                     <div>
-                      <label className="text-sm font-medium text-gray-500">인건비</label>
+                      <label className="text-sm font-medium text-gray-500">?�건�?/label>
                       <p className="text-base font-semibold">
-                        {selectedAsInfo.laborCost?.toLocaleString()}원
+                        {selectedAsInfo.laborCost?.toLocaleString()}??
                       </p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-500">부품비</label>
+                      <label className="text-sm font-medium text-gray-500">부?�비</label>
                       <p className="text-base font-semibold">
-                        {selectedAsInfo.partsCost?.toLocaleString()}원
+                        {selectedAsInfo.partsCost?.toLocaleString()}??
                       </p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-500">총 비용</label>
+                      <label className="text-sm font-medium text-gray-500">�?비용</label>
                       <p className="text-lg font-bold text-blue-600">
-                        {selectedAsInfo.totalCost?.toLocaleString()}원
+                        {selectedAsInfo.totalCost?.toLocaleString()}??
                       </p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* 담당자 정보 */}
+              {/* ?�당???�보 */}
               {selectedAsInfo.assignedTo && (
                 <div className="border-t pt-4">
-                  <h4 className="font-semibold mb-3">담당자</h4>
+                  <h4 className="font-semibold mb-3">?�당??/h4>
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
                       <span className="text-blue-600 font-semibold">
@@ -1401,17 +1482,17 @@ export function OrdersTable({
             </div>
           ) : (
             <div className="text-center py-8 text-gray-500">
-              AS 정보를 불러올 수 없습니다.
+              AS ?�보�?불러?????�습?�다.
             </div>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* 주문 상세 정보 다이얼로그 */}
+      {/* 주문 ?�세 ?�보 ?�이?�로�?*/}
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-blue-600">주문 상세 정보</DialogTitle>
+            <DialogTitle className="text-xl font-bold text-blue-600">주문 ?�세 ?�보</DialogTitle>
             <DialogDescription>
               주문번호: {selectedOrder?.orderNumber || "-"}
             </DialogDescription>
@@ -1419,27 +1500,27 @@ export function OrdersTable({
 
           {selectedOrder && (
             <div className="space-y-6">
-              {/* 고객 정보 */}
+              {/* 고객 ?�보 */}
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
                 <h4 className="font-semibold mb-3 text-gray-800 flex items-center gap-2">
                   <Package className="h-5 w-5 text-blue-600" />
-                  고객 정보
+                  고객 ?�보
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-600">고객명</label>
+                    <label className="text-sm font-medium text-gray-600">고객�?/label>
                     <p className="text-base font-semibold text-gray-800">{selectedOrder.recipientName || "-"}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">전화번호</label>
+                    <label className="text-sm font-medium text-gray-600">?�화번호</label>
                     <p className="text-base font-semibold text-gray-800">{selectedOrder.recipientPhone || "-"}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">휴대전화</label>
+                    <label className="text-sm font-medium text-gray-600">?��??�화</label>
                     <p className="text-base font-semibold text-gray-800">{selectedOrder.recipientMobile || "-"}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">우편번호</label>
+                    <label className="text-sm font-medium text-gray-600">?�편번호</label>
                     <p className="text-base font-semibold text-gray-800">{selectedOrder.recipientZipCode || "-"}</p>
                   </div>
                   <div className="col-span-2">
@@ -1449,15 +1530,15 @@ export function OrdersTable({
                 </div>
               </div>
 
-              {/* 주문 정보 */}
+              {/* 주문 ?�보 */}
               <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-4 rounded-lg border border-purple-200">
                 <h4 className="font-semibold mb-3 text-gray-800 flex items-center gap-2">
                   <Calendar className="h-5 w-5 text-purple-600" />
-                  주문 정보
+                  주문 ?�보
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-600">주문일</label>
+                    <label className="text-sm font-medium text-gray-600">주문??/label>
                     <p className="text-base font-semibold text-gray-800">
                       {selectedOrder.orderDate 
                         ? new Date(selectedOrder.orderDate).toLocaleDateString("ko-KR") 
@@ -1465,7 +1546,7 @@ export function OrdersTable({
                     </p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">주문처</label>
+                    <label className="text-sm font-medium text-gray-600">주문�?/label>
                     <p className="text-base font-semibold text-gray-800">{selectedOrder.orderSource || "-"}</p>
                   </div>
                   <div className="col-span-2">
@@ -1475,70 +1556,70 @@ export function OrdersTable({
                 </div>
               </div>
 
-              {/* 상품 정보 */}
+              {/* ?�품 ?�보 */}
               <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-4 rounded-lg border border-emerald-200">
                 <h4 className="font-semibold mb-3 text-gray-800 flex items-center gap-2">
                   <Package className="h-5 w-5 text-emerald-600" />
-                  상품 정보
+                  ?�품 ?�보
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
-                    <label className="text-sm font-medium text-gray-600">상품명 및 수량</label>
+                    <label className="text-sm font-medium text-gray-600">?�품�?�??�량</label>
                     <p className="text-base font-semibold text-gray-800">{selectedOrder.productInfo || "-"}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">단가</label>
+                    <label className="text-sm font-medium text-gray-600">?��?</label>
                     <p className="text-base font-semibold text-gray-800">
-                      {selectedOrder.basePrice ? `${selectedOrder.basePrice.toLocaleString()}원` : "-"}
+                      {selectedOrder.basePrice ? `${selectedOrder.basePrice.toLocaleString()}?? : "-"}
                     </p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">배송비</label>
+                    <label className="text-sm font-medium text-gray-600">배송�?/label>
                     <p className="text-base font-semibold text-gray-800">
-                      {selectedOrder.shippingFee ? `${selectedOrder.shippingFee.toLocaleString()}원` : "-"}
+                      {selectedOrder.shippingFee ? `${selectedOrder.shippingFee.toLocaleString()}?? : "-"}
                     </p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">총 금액</label>
+                    <label className="text-sm font-medium text-gray-600">�?금액</label>
                     <p className="text-lg font-bold text-emerald-600">
-                      {selectedOrder.totalAmount ? `${selectedOrder.totalAmount.toLocaleString()}원` : "-"}
+                      {selectedOrder.totalAmount ? `${selectedOrder.totalAmount.toLocaleString()}?? : "-"}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* 배송 정보 */}
+              {/* 배송 ?�보 */}
               <div className="bg-gradient-to-br from-orange-50 to-amber-50 p-4 rounded-lg border border-orange-200">
                 <h4 className="font-semibold mb-3 text-gray-800 flex items-center gap-2">
                   <Truck className="h-5 w-5 text-orange-600" />
-                  배송 정보
+                  배송 ?�보
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-600">택배사</label>
+                    <label className="text-sm font-medium text-gray-600">?�배??/label>
                     <p className="text-base font-semibold text-gray-800">{selectedOrder.courier || "-"}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">운송장번호</label>
+                    <label className="text-sm font-medium text-gray-600">?�송?�번??/label>
                     <p className="text-base font-semibold text-gray-800">{selectedOrder.trackingNumber || "-"}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">배송 상태</label>
+                    <label className="text-sm font-medium text-gray-600">배송 ?�태</label>
                     <div className="mt-1">
                       <DeliveryStatusProgress status={selectedOrder.deliveryStatus} />
                     </div>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">사은품 발송</label>
+                    <label className="text-sm font-medium text-gray-600">?��???발송</label>
                     <p className="text-base font-semibold text-gray-800">{selectedOrder.giftSent || "-"}</p>
                   </div>
                 </div>
               </div>
 
-              {/* 기타 정보 */}
+              {/* 기�? ?�보 */}
               {(selectedOrder.memo || selectedOrder.internalNotes) && (
                 <div className="bg-gradient-to-br from-gray-50 to-slate-100 p-4 rounded-lg border border-gray-200">
-                  <h4 className="font-semibold mb-3 text-gray-800">기타 정보</h4>
+                  <h4 className="font-semibold mb-3 text-gray-800">기�? ?�보</h4>
                   {selectedOrder.memo && (
                     <div className="mb-3">
                       <label className="text-sm font-medium text-gray-600">메모</label>
@@ -1547,7 +1628,7 @@ export function OrdersTable({
                   )}
                   {selectedOrder.internalNotes && (
                     <div>
-                      <label className="text-sm font-medium text-gray-600">내부 메모</label>
+                      <label className="text-sm font-medium text-gray-600">?��? 메모</label>
                       <p className="text-base text-gray-800">{selectedOrder.internalNotes}</p>
                     </div>
                   )}
@@ -1558,7 +1639,7 @@ export function OrdersTable({
         </DialogContent>
       </Dialog>
 
-      {/* 주문 수정 다이얼로그 */}
+      {/* 주문 ?�정 ?�이?�로�?*/}
       <EditOrderDialog
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
@@ -1566,11 +1647,11 @@ export function OrdersTable({
         mode={editDialogMode}
       />
 
-      {/* 오류 메시지 다이얼로그 */}
+      {/* ?�류 메시지 ?�이?�로�?*/}
       <Dialog open={errorDialogOpen} onOpenChange={setErrorDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>오류 발생</DialogTitle>
+            <DialogTitle>?�류 발생</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <pre className="bg-gray-100 p-4 rounded overflow-auto max-h-60 text-sm whitespace-pre-wrap break-words">
@@ -1581,13 +1662,13 @@ export function OrdersTable({
                 variant="outline"
                 onClick={() => {
                   navigator.clipboard.writeText(errorMessage);
-                  alert("오류 메시지가 복사되었습니다.");
+                  alert("?�류 메시지가 복사?�었?�니??");
                 }}
               >
                 복사
               </Button>
               <Button onClick={() => setErrorDialogOpen(false)}>
-                닫기
+                ?�기
               </Button>
             </div>
           </div>
