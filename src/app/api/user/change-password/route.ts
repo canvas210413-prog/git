@@ -111,6 +111,7 @@ export async function POST(request: NextRequest) {
                    request.headers.get("x-real-ip") || 
                    "unknown",
         userAgent: request.headers.get("user-agent") || "unknown",
+        status: "SUCCESS",
         createdAt: new Date(),
       },
     });
