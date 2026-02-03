@@ -17,7 +17,7 @@ import { ClientOnly } from "@/components/client-only";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { User, Mail, Shield, ChevronDown } from "lucide-react";
+import { User, Mail, Shield, ChevronDown, Lock } from "lucide-react";
 
 export function Header() {
   const router = useRouter();
@@ -190,6 +190,10 @@ export function Header() {
                   <DropdownMenuItem onClick={() => router.push('/dashboard/settings/users')}>
                     <User className="mr-2 h-4 w-4" />
                     <span>내 프로필</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push('/dashboard/settings/change-password')}>
+                    <Lock className="mr-2 h-4 w-4" />
+                    <span>비밀번호 변경</span>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
