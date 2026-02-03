@@ -408,7 +408,7 @@ export async function getInventoryLogs(partId?: string, limit: number = 100) {
  */
 export async function getAllInventoryLogs(limit: number = 500) {
   try {
-    const logs = await prisma.inventoryLog.findMany({
+    const logs = await prisma.inventorylog.findMany({
       include: {
         part: {
           select: {

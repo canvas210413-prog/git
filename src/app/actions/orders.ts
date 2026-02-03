@@ -7,6 +7,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { moveAllOrdersToTrash, moveOrderToTrash } from "@/app/actions/trash";
 import { notifyNewOrderFromPartner } from "@/lib/notification-helper";
+import { deductInventoryByMapping } from "@/app/actions/inventory-mapping";
 import type { PaginatedResponse, ApiResponse, OrderStatus } from "@/types";
 import { createId } from "@paralleldrive/cuid2";
 
@@ -568,6 +569,25 @@ export async function createOrder(
 
     console.log(`✅ [createOrder] 주문 생성 성공 - ID: ${order.id}`);
     console.log(`🎁 [createOrder] 생성된 주문의 giftSent: ${order.giftSent}`);
+
+    // 상품-재고 매핑 기반 자동 재고 차감
+    if (validation.data.productInfo) {
+      console.log(`📦 [createOrder] 재고 차감 시작: ${validation.data.productInfo}`);
+      try {
+        const deductResult = await deductInventoryByMapping(
+          validation.data.productInfo,
+          1,
+          order.id
+        );
+        if (deductResult.success && deductResult.data && deductResult.data.deducted.length > 0) {
+          console.log(`✅ [createOrder] 재고 차감 완료:`, deductResult.data.deducted);
+        } else {
+          console.log(`ℹ️ [createOrder] 매핑된 재고 없음 - 차감 건너뜀`);
+        }
+      } catch (deductError) {
+        console.error(`⚠️ [createOrder] 재고 차감 실패 (주문은 생성됨):`, deductError);
+      }
+    }
 
     // 협력사가 주문을 생성한 경우 관리자에게 알림 (일괄 처리 시 건너뛰기)
     console.log(`🔔 [createOrder] skipNotification: ${data.skipNotification}`);

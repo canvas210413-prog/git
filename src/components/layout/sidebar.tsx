@@ -9,7 +9,7 @@ import {
   AlertCircle, Star, FileBarChart, Bell, Gift, Mail, UserMinus,
   Target, PieChart, HelpCircle, BarChart2, Activity, Database,
   CheckCircle, HardDrive, FileText, ChevronDown, ChevronRight,
-  LucideIcon, Store, ExternalLink, Trash2
+  LucideIcon, Store, ExternalLink, Trash2, Link2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -170,6 +170,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: "기준정보",
     items: [
       { id: "master-products", label: "상품 관리", href: "/dashboard/master-data/products", icon: Package },
+      { id: "master-inventory-mapping", label: "상품-재고 매핑", href: "/dashboard/master-data/inventory-mapping", icon: Link2, requiresAdmin: true },
     ],
   },
   {

@@ -2,18 +2,13 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -37,9 +32,11 @@ import {
   Calculator,
   Save,
   PiggyBank,
-  Percent
+  Percent,
+  Loader2
 } from "lucide-react";
 import { toast } from "sonner";
+import { updateKPISettings } from "@/app/actions/base-products";
 
 // ============================================================================
 // Types
@@ -58,11 +55,27 @@ interface KPISettings {
   commissionRate: number;
 }
 
+// 상품별 KPI 설정 타입
+interface ProductKPISetting {
+  id: number;
+  name: string;
+  partnerCode: string;
+  unitPrice: number;
+  kpiSupplyPrice: number | null;
+  kpiCostPrice: number | null;
+  kpiCommissionRate: number | null;  // 수수료율 (기본 0.02585 = 2.585%)
+  kpiUnitCount: number;               // 기본단가당 건수 (예: 198000원=2건)
+  kpiCountEnabled: boolean;
+  kpiSalesEnabled: boolean;
+}
+
 interface PartnerStats {
   partner: string;
   count: number;
+  countForKPI: number;  // KPI 건수 카운트
   quantity: number;
   basePrice: number;        // 실제 단가 합계 (DB basePrice 필드)
+  basePriceForKPI: number;  // KPI 매출 합계
   shippingFee: number;      // 배송비 합계 (DB shippingFee 필드)
   supplyPrice: number;      // 계산된 공급가
   vat: number;
@@ -74,8 +87,10 @@ interface PartnerStats {
 
 interface TotalsStats {
   count: number;
+  countForKPI: number;
   quantity: number;
   basePrice: number;
+  basePriceForKPI: number;
   shippingFee: number;
   supplyPrice: number;
   vat: number;
@@ -105,9 +120,8 @@ interface DashboardData {
     totals: TotalsStats;
     productSales: Record<string, number>;
   };
+  productKPISettings: ProductKPISetting[];
   priceInfo: {
-    supplyPriceByPartner: Record<string, number>;
-    costPerUnit: number;
     vatRate: number;
     commissionRate: number;
   };
@@ -163,13 +177,15 @@ function SelectedPeriodSection({
   const totals = filteredData.reduce(
     (acc, p) => ({
       count: acc.count + p.count,
+      countForKPI: acc.countForKPI + (p.countForKPI || 0),
       quantity: acc.quantity + p.quantity,
       basePrice: acc.basePrice + p.basePrice,
+      basePriceForKPI: acc.basePriceForKPI + (p.basePriceForKPI || 0),
       shippingFee: acc.shippingFee + p.shippingFee,
       supplyPrice: acc.supplyPrice + p.supplyPrice,
       totalWithVat: acc.totalWithVat + p.totalWithVat,
     }),
-    { count: 0, quantity: 0, basePrice: 0, shippingFee: 0, supplyPrice: 0, totalWithVat: 0 }
+    { count: 0, countForKPI: 0, quantity: 0, basePrice: 0, basePriceForKPI: 0, shippingFee: 0, supplyPrice: 0, totalWithVat: 0 }
   );
 
   return (
@@ -181,61 +197,59 @@ function SelectedPeriodSection({
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* 총매출 (실제 단가 합계) */}
+        {/* 총매출 (KPI 설정 기준) */}
         <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-300 border shadow-lg hover:shadow-xl transition-all">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2 text-gray-700">
               <div className="p-2 bg-white rounded-lg shadow-sm">
                 <TrendingUp className="h-5 w-5 text-blue-600" />
               </div>
-              총매출 (단가합계)
+              총매출 (KPI 기준)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {filteredData.map(p => (
               <div key={p.partner} className="flex justify-between items-center py-1 px-2 rounded hover:bg-white/50">
                 <span className="text-sm text-gray-600">{p.partner}</span>
-                <span className="font-semibold text-blue-700">{formatCurrency(p.basePrice)}</span>
+                <span className="font-semibold text-blue-700">{formatCurrency(p.basePriceForKPI || p.basePrice)}</span>
               </div>
             ))}
             <div className="border-t-2 border-blue-200 pt-3 mt-3 bg-white/60 p-3 rounded-lg">
               <div className="flex justify-between items-center">
                 <span className="font-bold text-gray-800">합계</span>
-                <span className="font-bold text-xl text-blue-600">{formatCurrency(totals.basePrice)}</span>
+                <span className="font-bold text-xl text-blue-600">{formatCurrency(totals.basePriceForKPI || totals.basePrice)}</span>
               </div>
             </div>
-            <p className="text-xs text-gray-500 text-center italic">* 실제 주문 단가 합계 기준</p>
           </CardContent>
         </Card>
 
-        {/* 주문건수 */}
+        {/* 주문건수 (KPI 설정 기준) */}
         <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-300 border shadow-lg hover:shadow-xl transition-all">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2 text-gray-700">
               <div className="p-2 bg-white rounded-lg shadow-sm">
                 <Package className="h-5 w-5 text-purple-600" />
               </div>
-              주문건수
+              주문건수 (KPI 기준)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {filteredData.map(p => (
               <div key={p.partner} className="flex justify-between items-center py-1 px-2 rounded hover:bg-white/50">
                 <span className="text-sm text-gray-600">{p.partner}</span>
-                <span className="font-semibold text-purple-700">{formatNumber(p.count)}건</span>
+                <span className="font-semibold text-purple-700">{formatNumber(p.countForKPI || p.count)}건</span>
               </div>
             ))}
             <div className="border-t-2 border-purple-200 pt-3 mt-3 bg-white/60 p-3 rounded-lg">
               <div className="flex justify-between items-center">
                 <span className="font-bold text-gray-800">합계</span>
-                <span className="font-bold text-xl text-purple-600">{formatNumber(totals.count)}건</span>
+                <span className="font-bold text-xl text-purple-600">{formatNumber(totals.countForKPI || totals.count)}건</span>
               </div>
             </div>
-            <p className="text-xs text-gray-500 text-center italic">* 주문 목록 개수 기준</p>
           </CardContent>
         </Card>
 
-        {/* 공급가 (커스터마이징) */}
+        {/* 공급가 (상품별 설정값) */}
         <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-300 border shadow-lg hover:shadow-xl transition-all">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2 text-gray-700">
@@ -248,12 +262,7 @@ function SelectedPeriodSection({
           <CardContent className="space-y-2">
             {filteredData.map(p => (
               <div key={p.partner} className="flex justify-between items-center py-1 px-2 rounded hover:bg-white/50">
-                <span className="text-sm text-gray-600">
-                  {p.partner}
-                  <span className="text-xs text-gray-400 ml-1">
-                    ({formatNumber(settings.partners[p.partner]?.supplyPrice || 0)}/개)
-                  </span>
-                </span>
+                <span className="text-sm text-gray-600">{p.partner}</span>
                 <span className="font-semibold text-emerald-700">{formatCurrency(p.supplyPrice)}</span>
               </div>
             ))}
@@ -263,7 +272,6 @@ function SelectedPeriodSection({
                 <span className="font-bold text-xl text-emerald-600">{formatCurrency(totals.supplyPrice)}</span>
               </div>
             </div>
-            <p className="text-xs text-gray-500 text-center italic">* KPI 설정에서 단가 변경 가능</p>
           </CardContent>
         </Card>
 
@@ -290,7 +298,6 @@ function SelectedPeriodSection({
                 <span className="font-bold text-xl text-orange-600">{formatCurrency(totals.shippingFee)}</span>
               </div>
             </div>
-            <p className="text-xs text-gray-500 text-center italic">* 실제 주문 배송비 합계</p>
           </CardContent>
         </Card>
       </div>
@@ -317,14 +324,16 @@ function MonthToDateSection({
   const totals = filteredData.reduce(
     (acc, p) => ({
       count: acc.count + p.count,
+      countForKPI: acc.countForKPI + (p.countForKPI || 0),
       quantity: acc.quantity + p.quantity,
       basePrice: acc.basePrice + p.basePrice,
+      basePriceForKPI: acc.basePriceForKPI + (p.basePriceForKPI || 0),
       shippingFee: acc.shippingFee + p.shippingFee,
       supplyPrice: acc.supplyPrice + p.supplyPrice,
       totalWithVat: acc.totalWithVat + p.totalWithVat,
       margin: acc.margin + p.margin,
     }),
-    { count: 0, quantity: 0, basePrice: 0, shippingFee: 0, supplyPrice: 0, totalWithVat: 0, margin: 0 }
+    { count: 0, countForKPI: 0, quantity: 0, basePrice: 0, basePriceForKPI: 0, shippingFee: 0, supplyPrice: 0, totalWithVat: 0, margin: 0 }
   );
 
   return (
@@ -336,53 +345,53 @@ function MonthToDateSection({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* 기간별 매출 합계 */}
+        {/* 기간별 매출 합계 (KPI 기준) */}
         <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-300 border shadow-lg hover:shadow-xl transition-all">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2 text-gray-700">
               <div className="p-2 bg-white rounded-lg shadow-sm">
                 <TrendingUp className="h-5 w-5 text-emerald-600" />
               </div>
-              기간별 매출합계
+              기간별 매출합계 (KPI)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {filteredData.map(p => (
               <div key={p.partner} className="flex justify-between items-center py-1 px-2 rounded hover:bg-white/50">
                 <span className="text-sm text-gray-600">{p.partner}</span>
-                <span className="font-semibold text-emerald-700">{formatCurrency(p.basePrice)}</span>
+                <span className="font-semibold text-emerald-700">{formatCurrency(p.basePriceForKPI || p.basePrice)}</span>
               </div>
             ))}
             <div className="border-t-2 border-emerald-200 pt-3 mt-3 bg-white/60 p-3 rounded-lg">
               <div className="flex justify-between items-center">
                 <span className="font-bold text-gray-800">합계</span>
-                <span className="font-bold text-xl text-emerald-600">{formatCurrency(totals.basePrice)}</span>
+                <span className="font-bold text-xl text-emerald-600">{formatCurrency(totals.basePriceForKPI || totals.basePrice)}</span>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* 1~현재일 건수 */}
+        {/* 1~현재일 건수 (KPI 기준) */}
         <Card className="bg-gradient-to-br from-cyan-50 to-sky-50 border-cyan-300 border shadow-lg hover:shadow-xl transition-all">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2 text-gray-700">
               <div className="p-2 bg-white rounded-lg shadow-sm">
                 <Package className="h-5 w-5 text-cyan-600" />
               </div>
-              1~현재일 건수
+              1~현재일 건수 (KPI)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {filteredData.map(p => (
               <div key={p.partner} className="flex justify-between items-center py-1 px-2 rounded hover:bg-white/50">
                 <span className="text-sm text-gray-600">{p.partner}</span>
-                <span className="font-semibold text-cyan-700">{formatNumber(p.count)}건</span>
+                <span className="font-semibold text-cyan-700">{formatNumber(p.countForKPI || p.count)}건</span>
               </div>
             ))}
             <div className="border-t-2 border-cyan-200 pt-3 mt-3 bg-white/60 p-3 rounded-lg">
               <div className="flex justify-between items-center">
                 <span className="font-bold text-gray-800">합계</span>
-                <span className="font-bold text-xl text-cyan-600">{formatNumber(totals.count)}건</span>
+                <span className="font-bold text-xl text-cyan-600">{formatNumber(totals.countForKPI || totals.count)}건</span>
               </div>
             </div>
           </CardContent>
@@ -473,8 +482,9 @@ function MarginAndStatsSection({
       margin: acc.margin + p.margin,
       vat: acc.vat + p.vat,
       totalWithVat: acc.totalWithVat + p.totalWithVat,
+      commission: acc.commission + (p.commission || 0),
     }),
-    { count: 0, quantity: 0, basePrice: 0, shippingFee: 0, supplyPrice: 0, cost: 0, margin: 0, vat: 0, totalWithVat: 0 }
+    { count: 0, quantity: 0, basePrice: 0, shippingFee: 0, supplyPrice: 0, cost: 0, margin: 0, vat: 0, totalWithVat: 0, commission: 0 }
   );
 
   const filteredYearData = yearData.byPartner.filter(p => 
@@ -492,8 +502,9 @@ function MarginAndStatsSection({
       margin: acc.margin + p.margin,
       vat: acc.vat + p.vat,
       totalWithVat: acc.totalWithVat + p.totalWithVat,
+      commission: acc.commission + (p.commission || 0),
     }),
-    { count: 0, quantity: 0, basePrice: 0, shippingFee: 0, supplyPrice: 0, cost: 0, margin: 0, vat: 0, totalWithVat: 0 }
+    { count: 0, quantity: 0, basePrice: 0, shippingFee: 0, supplyPrice: 0, cost: 0, margin: 0, vat: 0, totalWithVat: 0, commission: 0 }
   );
 
   return (
@@ -517,8 +528,8 @@ function MarginAndStatsSection({
           <CardContent className="space-y-3">
             <div className="bg-white/60 p-4 rounded-lg space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">공급가 합계</span>
-                <span className="font-semibold">{formatCurrency(monthTotals.supplyPrice)}</span>
+                <span className="text-gray-600">공급가(부가세제외)</span>
+                <span className="font-semibold">{formatCurrency(monthTotals.supplyPrice / 1.1)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">원가 합계</span>
@@ -528,16 +539,17 @@ function MarginAndStatsSection({
                 <span className="text-gray-600">배송비 합계</span>
                 <span className="font-semibold text-red-600">-{formatCurrency(monthTotals.shippingFee)}</span>
               </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">수수료 합계</span>
+                <span className="font-semibold text-red-600">-{formatCurrency(monthTotals.commission)}</span>
+              </div>
               <div className="border-t-2 border-green-200 pt-2 mt-2 flex justify-between items-center">
                 <span className="font-bold text-gray-800">순마진</span>
                 <span className="font-bold text-2xl text-green-600">
-                  {formatCurrency(monthTotals.supplyPrice - monthTotals.cost - monthTotals.shippingFee)}
+                  {formatCurrency(monthTotals.margin)}
                 </span>
               </div>
             </div>
-            <p className="text-xs text-gray-500 text-center italic">
-              * 마진 = 공급가 - 원가 - 배송비
-            </p>
           </CardContent>
         </Card>
 
@@ -614,7 +626,8 @@ function MarginAndStatsSection({
         </Card>
       </div>
 
-      {/* 상품별 판매수량 */}
+      {/* 상품별 판매수량 - 숨김 처리 */}
+      {false && (
       <Card className="bg-gradient-to-br from-rose-50 to-pink-50 border-rose-300 border shadow-lg">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2 text-gray-700">
@@ -635,201 +648,8 @@ function MarginAndStatsSection({
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
-  );
-}
-
-// KPI 설정 다이얼로그
-function KPISettingsDialog({
-  open,
-  onOpenChange,
-  settings,
-  onSave,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  settings: KPISettings;
-  onSave: (settings: KPISettings) => void;
-}) {
-  const [localSettings, setLocalSettings] = useState<KPISettings>(settings);
-
-  useEffect(() => {
-    setLocalSettings(settings);
-  }, [settings]);
-
-  const handlePartnerChange = (partner: string, field: keyof PartnerConfig, value: number | boolean) => {
-    setLocalSettings(prev => ({
-      ...prev,
-      partners: {
-        ...prev.partners,
-        [partner]: {
-          ...prev.partners[partner],
-          [field]: value,
-        },
-      },
-    }));
-  };
-
-  const handleSave = () => {
-    onSave(localSettings);
-    onOpenChange(false);
-    toast.success("KPI 설정이 저장되었습니다.");
-  };
-
-  const handleReset = () => {
-    setLocalSettings(DEFAULT_KPI_SETTINGS);
-    toast.info("기본값으로 초기화되었습니다.");
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-2xl flex items-center gap-2">
-            <Settings className="h-6 w-6 text-blue-600" />
-            KPI 설정
-          </DialogTitle>
-          <DialogDescription>
-            통합대시보드의 공급가, 원가, 세율 등을 커스터마이징합니다.
-          </DialogDescription>
-        </DialogHeader>
-
-        <Tabs defaultValue="partners" className="mt-4">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="partners">협력사별 단가</TabsTrigger>
-            <TabsTrigger value="rates">세율 및 기타</TabsTrigger>
-          </TabsList>
-
-          {/* 협력사별 단가 설정 */}
-          <TabsContent value="partners" className="space-y-4 mt-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[150px]">협력사</TableHead>
-                  <TableHead>공급가 (원/개)</TableHead>
-                  <TableHead>원가 (원/개)</TableHead>
-                  <TableHead className="text-center">활성화</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {Object.entries(localSettings.partners).map(([partner, config]) => (
-                  <TableRow key={partner}>
-                    <TableCell className="font-medium">{partner}</TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        value={config.supplyPrice}
-                        onChange={(e) => handlePartnerChange(partner, 'supplyPrice', Number(e.target.value))}
-                        className="w-32"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        value={config.costPrice}
-                        onChange={(e) => handlePartnerChange(partner, 'costPrice', Number(e.target.value))}
-                        className="w-32"
-                      />
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <input
-                        type="checkbox"
-                        checked={config.enabled}
-                        onChange={(e) => handlePartnerChange(partner, 'enabled', e.target.checked)}
-                        className="w-5 h-5 cursor-pointer"
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <p className="text-sm text-blue-700">
-                <strong>💡 안내:</strong> 공급가는 개당 단가이며, 주문수량과 곱하여 총 공급가가 계산됩니다.
-                활성화를 해제하면 해당 협력사 데이터가 통계에서 제외됩니다.
-              </p>
-            </div>
-          </TabsContent>
-
-          {/* 세율 및 기타 설정 */}
-          <TabsContent value="rates" className="space-y-6 mt-4">
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Percent className="h-4 w-4" />
-                  부가세율 (%)
-                </Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  value={localSettings.vatRate * 100}
-                  onChange={(e) => setLocalSettings(prev => ({ 
-                    ...prev, 
-                    vatRate: Number(e.target.value) / 100 
-                  }))}
-                />
-                <p className="text-xs text-gray-500">기본값: 10%</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Calculator className="h-4 w-4" />
-                  수수료율 (%)
-                </Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  value={localSettings.commissionRate * 100}
-                  onChange={(e) => setLocalSettings(prev => ({ 
-                    ...prev, 
-                    commissionRate: Number(e.target.value) / 100 
-                  }))}
-                />
-                <p className="text-xs text-gray-500">기본값: 0%</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Truck className="h-4 w-4" />
-                  기본 배송비 (원)
-                </Label>
-                <Input
-                  type="number"
-                  value={localSettings.defaultShippingFee}
-                  onChange={(e) => setLocalSettings(prev => ({ 
-                    ...prev, 
-                    defaultShippingFee: Number(e.target.value) 
-                  }))}
-                />
-                <p className="text-xs text-gray-500">DB에 배송비가 없을 때 적용</p>
-              </div>
-            </div>
-
-            <div className="bg-amber-50 p-4 rounded-lg">
-              <p className="text-sm text-amber-700">
-                <strong>📌 마진 계산 공식:</strong><br />
-                마진 = 공급가 - 원가 - 배송비 - (공급가 × 수수료율)
-              </p>
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        <DialogFooter className="mt-6">
-          <Button variant="outline" onClick={handleReset}>
-            <RefreshCcw className="mr-2 h-4 w-4" />
-            기본값 초기화
-          </Button>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            취소
-          </Button>
-          <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700">
-            <Save className="mr-2 h-4 w-4" />
-            저장
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -848,38 +668,15 @@ export default function IntegratedDashboardPage() {
   const [endDate, setEndDate] = useState(today);
 
   // KPI 설정 상태
-  const [kpiSettingsOpen, setKpiSettingsOpen] = useState(false);
   const [kpiSettings, setKpiSettings] = useState<KPISettings>(DEFAULT_KPI_SETTINGS);
+  const [productKPISettings, setProductKPISettings] = useState<ProductKPISetting[]>([]);
 
-  // KPI 설정 로드
-  useEffect(() => {
-    const savedSettings = localStorage.getItem('kpiSettings_v2');
-    if (savedSettings) {
-      try {
-        const parsed = JSON.parse(savedSettings);
-        setKpiSettings(prev => ({ ...DEFAULT_KPI_SETTINGS, ...parsed }));
-      } catch (e) {
-        console.error('Failed to parse KPI settings:', e);
-      }
-    }
-  }, []);
-
-  // KPI 설정 저장
-  const handleSaveKPISettings = useCallback((newSettings: KPISettings) => {
-    setKpiSettings(newSettings);
-    localStorage.setItem('kpiSettings_v2', JSON.stringify(newSettings));
-    // 설정 변경 후 데이터 다시 로드
-    fetchData(startDate, endDate, newSettings);
-  }, [startDate, endDate]);
-
-  const fetchData = useCallback(async (start?: string, end?: string, settings?: KPISettings) => {
+  const fetchData = useCallback(async (start?: string, end?: string) => {
     setLoading(true);
     try {
-      const currentSettings = settings || kpiSettings;
       const queryParams = new URLSearchParams({
         startDate: start || startDate,
         endDate: end || endDate,
-        kpiSettings: JSON.stringify(currentSettings),
       });
       
       const response = await fetch(`/api/performance/integrated-dashboard?${queryParams}`);
@@ -887,6 +684,10 @@ export default function IntegratedDashboardPage() {
         const result = await response.json();
         if (result.success) {
           setData(result.data);
+          // 상품 KPI 설정도 함께 저장
+          if (result.data.productKPISettings) {
+            setProductKPISettings(result.data.productKPISettings);
+          }
         }
       }
     } catch (error) {
@@ -895,7 +696,7 @@ export default function IntegratedDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [kpiSettings, startDate, endDate]);
+  }, [startDate, endDate]);
 
   useEffect(() => {
     fetchData();
@@ -910,6 +711,11 @@ export default function IntegratedDashboardPage() {
     setStartDate(todayDate);
     setEndDate(todayDate);
     fetchData(todayDate, todayDate);
+  };
+
+  const handleKPISettingsSave = () => {
+    // 데이터 다시 로드
+    fetchData(startDate, endDate);
   };
 
   // 세션 로딩 중
@@ -992,14 +798,15 @@ export default function IntegratedDashboardPage() {
 
         <div className="flex flex-wrap items-center gap-3">
           {/* KPI 설정 버튼 */}
-          <Button
-            onClick={() => setKpiSettingsOpen(true)}
-            variant="outline"
-            className="shadow-md hover:shadow-lg transition-all bg-white"
-          >
-            <Settings className="mr-2 h-4 w-4" />
-            KPI 설정
-          </Button>
+          <Link href="/dashboard/performance/integrated/kpi-settings">
+            <Button
+              variant="outline"
+              className="shadow-md hover:shadow-lg transition-all bg-white"
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              KPI 설정
+            </Button>
+          </Link>
           
           {/* 날짜 검색 */}
           <div className="flex items-center gap-2 bg-white p-3 rounded-xl shadow-md">
@@ -1068,31 +875,38 @@ export default function IntegratedDashboardPage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2 text-gray-700">
             <div className="p-2 bg-white rounded-lg shadow-sm">📌</div>
-            현재 적용된 KPI 설정
+            현재 적용된 KPI 설정 (상품별)
           </CardTitle>
         </CardHeader>
-        <CardContent className="text-sm text-gray-600 grid grid-cols-2 md:grid-cols-4 gap-4 bg-white/60 p-4 rounded-lg">
-          {Object.entries(kpiSettings.partners).filter(([, c]) => c.enabled).map(([partner, config]) => (
-            <div key={partner}>
-              <span className="font-medium">{partner}:</span> 공급가 {formatNumber(config.supplyPrice)}원/개, 원가 {formatNumber(config.costPrice)}원/개
+        <CardContent className="text-sm text-gray-600">
+          <div className="bg-white/60 p-4 rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {productKPISettings.filter(p => p.kpiCountEnabled || p.kpiSalesEnabled).slice(0, 6).map(product => (
+                <div key={product.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                    {product.partnerCode}
+                  </span>
+                  <span className="font-medium text-gray-800 truncate">{product.name}</span>
+                  <div className="ml-auto flex items-center gap-1 text-xs text-gray-500">
+                    {product.kpiSupplyPrice && <span>공급가:{formatNumber(product.kpiSupplyPrice)}원</span>}
+                    {product.kpiCostPrice && <span>원가:{formatNumber(product.kpiCostPrice)}원</span>}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-          <div>
-            <span className="font-medium">부가세율:</span> {kpiSettings.vatRate * 100}%
-          </div>
-          <div>
-            <span className="font-medium">수수료율:</span> {kpiSettings.commissionRate * 100}%
+            {productKPISettings.length > 6 && (
+              <p className="text-center text-gray-500 mt-3 text-sm">
+                ... 외 {productKPISettings.length - 6}개 상품
+              </p>
+            )}
+            {productKPISettings.length === 0 && (
+              <p className="text-center text-gray-500 py-4">
+                등록된 상품이 없습니다. KPI 설정 버튼을 클릭하여 상품을 등록해주세요.
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
-
-      {/* KPI 설정 다이얼로그 */}
-      <KPISettingsDialog
-        open={kpiSettingsOpen}
-        onOpenChange={setKpiSettingsOpen}
-        settings={kpiSettings}
-        onSave={handleSaveKPISettings}
-      />
     </div>
   );
 }

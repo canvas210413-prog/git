@@ -74,15 +74,25 @@ model auditlog {
 }
 
 model baseproduct {
-  id          String   @id
-  name        String
-  unitPrice   Decimal  @db.Decimal(10, 2)
-  description String?  @db.Text
-  isActive    Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime
-  partnerCode String?
+  id            String   @id @default(cuid())
+  name          String
+  unitPrice     Decimal  @db.Decimal(10, 2)
+  description   String?  @db.Text
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  partnerCode   String?
+  
+  // KPI 설정 필드
+  kpiSupplyPrice    Decimal?  @db.Decimal(10, 2)  // KPI용 공급가 (null이면 unitPrice 사용)
+  kpiCostPrice      Decimal?  @db.Decimal(10, 2)  // KPI용 원가
+  kpiCommissionRate Decimal?  @db.Decimal(10, 5)  // KPI용 수수료율 (기본 0.02585 = 2.585%)
+  kpiUnitCount      Int       @default(1)         // 기본단가당 건수 (예: 198000원=2건)
+  kpiCountEnabled   Boolean   @default(true)      // 주문건수 카운트 포함 여부
+  kpiSalesEnabled   Boolean   @default(true)      // 매출 집계 포함 여부
+  
+  inventoryMappings productinventorymapping[]
 
   @@index([isActive], map: "BaseProduct_isActive_idx")
   @@index([partnerCode], map: "BaseProduct_partnerCode_idx")
@@ -591,6 +601,8 @@ model part {
   supplier     String?
   unitPrice    Decimal?       @db.Decimal(10, 2)
   inventorylog inventorylog[]
+  
+  inventoryMappings productinventorymapping[]
 }
 
 model partner {
@@ -798,4 +810,27 @@ model usersession {
   @@index([expiresAt], map: "UserSession_expiresAt_idx")
   @@index([token], map: "UserSession_token_idx")
   @@index([userId], map: "UserSession_userId_idx")
+}
+
+// 상품-재고 매핑 기준정보
+model productinventorymapping {
+  id            String   @id
+  productId     String               // 상품 ID (baseproduct.id)
+  productName   String               // 상품명 (조회 편의용)
+  partId        String               // 재고 파트 ID (part.id)
+  partName      String               // 파트명 (조회 편의용)
+  deductQty     Int      @default(1) // 차감 수량
+  isActive      Boolean  @default(true)
+  description   String?  @db.Text    // 설명/메모
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime
+  createdBy     String?              // 등록자 ID
+
+  baseproduct   baseproduct @relation(fields: [productId], references: [id], map: "ProductInventoryMapping_productId_fkey")
+  part          part        @relation(fields: [partId], references: [id], map: "ProductInventoryMapping_partId_fkey")
+
+  @@unique([productId, partId], map: "ProductInventoryMapping_productId_partId_key")
+  @@index([productId], map: "ProductInventoryMapping_productId_idx")
+  @@index([partId], map: "ProductInventoryMapping_partId_idx")
+  @@index([isActive], map: "ProductInventoryMapping_isActive_idx")
 }

@@ -42,4 +42,27 @@ next-env.d.ts
 
 /src/generated/prisma
 
+# backups - 운영 데이터 보호
+backups/
 backups/*.sql
+backups/*.json
+
+# uploads - 사용자 업로드 파일
+public/uploads/
+uploads/
+
+# IDE
+.idea/
+.vscode/
+
+# Logs
+logs/
+*.log
+
+# OS
+Thumbs.db
+
+# Temp files
+*.tmp
+*.temp
+*.bak
