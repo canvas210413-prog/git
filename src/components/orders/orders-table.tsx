@@ -138,26 +138,52 @@ function DeliveryStatusBadge({ status }: { status: string | null }) {
 
 export function OrdersTable({ 
   orders: initialOrders,
+  totalCount = 0,
+  currentPage = 1,
+  itemsPerPage = 50,
+  onPageChange,
+  onItemsPerPageChange,
   selectedOrderIds,
-  onSelectionChange 
+  onSelectionChange,
+  // 서버 사이드 검색 props
+  searchName: serverSearchName = "",
+  searchPhone: serverSearchPhone = "",
+  orderSource: serverOrderSource = "all",
+  startDate: serverStartDate = "",
+  endDate: serverEndDate = "",
+  onSearchChange,
+  onResetSearch,
 }: { 
   orders: any[];
+  totalCount?: number;
+  currentPage?: number;
+  itemsPerPage?: number;
+  onPageChange?: (page: number) => void;
+  onItemsPerPageChange?: (value: string) => void;
   selectedOrderIds?: Set<string>;
   onSelectionChange?: (selectedIds: Set<string>) => void;
+  // 서버 사이드 검색 props
+  searchName?: string;
+  searchPhone?: string;
+  orderSource?: string;
+  startDate?: string;
+  endDate?: string;
+  onSearchChange?: (params: {
+    searchName?: string;
+    searchPhone?: string;
+    orderSource?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => void;
+  onResetSearch?: () => void;
 }) {
   const { data: session } = useSession();
   
   // 현재 사용자의 협력사 정보 (null이면 본사 - 전체 접근)
   const userPartner = (session?.user as { assignedPartner?: string | null })?.assignedPartner || null;
   
-  // 날짜순 정렬 함수
-  const sortOrdersByDate = (orderList: any[]) => {
-    return [...orderList].sort((a, b) => {
-      return new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime();
-    });
-  };
-
-  const [orders, setOrders] = useState(sortOrdersByDate(initialOrders));
+  // 서버에서 이미 createdAt 역순으로 정렬되어 오므로 클라이언트에서 재정렬하지 않음
+  const [orders, setOrders] = useState(initialOrders);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<any>({});
   const [isPending, startTransition] = useTransition();
@@ -232,15 +258,27 @@ export function OrdersTable({
   const [errorMessage, setErrorMessage] = useState("");
 
   // 검색 및 필터 상태
+  // 서버 사이드 검색 모드: onSearchChange가 있으면 서버에서 검색, 없으면 클라이언트 검색
+  const isServerSideSearch = !!onSearchChange;
+  
   // 협력사 사용자는 자신의 업체로 초기화
-  const [orderSource, setOrderSource] = useState("all");
-  const [searchName, setSearchName] = useState("");
-  const [searchPhone, setSearchPhone] = useState("");
+  const [orderSource, setOrderSource] = useState(serverOrderSource);
+  const [searchName, setSearchName] = useState(serverSearchName);
+  const [searchPhone, setSearchPhone] = useState(serverSearchPhone);
   const [dateRange, setDateRange] = useState("all");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(50);
+  const [startDate, setStartDate] = useState(serverStartDate);
+  const [endDate, setEndDate] = useState(serverEndDate);
+  
+  // 서버에서 들어온 검색 조건으로 동기화
+  useEffect(() => {
+    if (isServerSideSearch) {
+      setOrderSource(serverOrderSource);
+      setSearchName(serverSearchName);
+      setSearchPhone(serverSearchPhone);
+      setStartDate(serverStartDate);
+      setEndDate(serverEndDate);
+    }
+  }, [isServerSideSearch, serverOrderSource, serverSearchName, serverSearchPhone, serverStartDate, serverEndDate]);
 
   // 허용된 고객주문처명 목록
   const ALL_ORDER_SOURCES = ["본사", "로켓그로스", "그로트", "스몰닷", "해피포즈", "기타"];
@@ -260,13 +298,14 @@ export function OrdersTable({
     }
   }, [userPartner]);
 
-  // props 변경 시 정렬하여 상태 업데이트
+  // props 변경 시 상태 업데이트 (서버에서 이미 정렬됨)
   useEffect(() => {
-    setOrders(sortOrdersByDate(initialOrders));
+    setOrders(initialOrders);
   }, [initialOrders]);
 
   // 검색 및 필터링
-  const filteredOrders = orders.filter((order) => {
+  // 서버 사이드 검색 모드일 때는 클라이언트 필터링 스킵 (이미 서버에서 필터링됨)
+  const filteredOrders = isServerSideSearch ? orders : orders.filter((order) => {
     // 고객주문처명 필터
     if (orderSource !== "all") {
       const source = order.orderSource || "자사몰";
@@ -296,28 +335,55 @@ export function OrdersTable({
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    if (dateRange === "1day") {
+    if (dateRange === "today") {
+      // 오늘
       const orderDay = new Date(orderDate);
       orderDay.setHours(0, 0, 0, 0);
       if (orderDay.getTime() !== today.getTime()) {
         return false;
       }
-    } else if (dateRange === "1week") {
-      const weekAgo = new Date(today);
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      if (orderDate < weekAgo) {
+    } else if (dateRange === "yesterday") {
+      // 어제
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const orderDay = new Date(orderDate);
+      orderDay.setHours(0, 0, 0, 0);
+      if (orderDay.getTime() !== yesterday.getTime()) {
         return false;
       }
-    } else if (dateRange === "1month") {
-      const monthAgo = new Date(today);
-      monthAgo.setMonth(monthAgo.getMonth() - 1);
-      if (orderDate < monthAgo) {
+    } else if (dateRange === "7days") {
+      // 최근 7일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 6);
+      if (orderDate < daysAgo) {
         return false;
       }
-    } else if (dateRange === "1year") {
-      const yearAgo = new Date(today);
-      yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-      if (orderDate < yearAgo) {
+    } else if (dateRange === "30days") {
+      // 최근 30일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 29);
+      if (orderDate < daysAgo) {
+        return false;
+      }
+    } else if (dateRange === "90days") {
+      // 최근 90일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 89);
+      if (orderDate < daysAgo) {
+        return false;
+      }
+    } else if (dateRange === "180days") {
+      // 최근 180일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 179);
+      if (orderDate < daysAgo) {
+        return false;
+      }
+    } else if (dateRange === "365days") {
+      // 최근 365일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 364);
+      if (orderDate < daysAgo) {
         return false;
       }
     } else if (dateRange === "custom" && startDate && endDate) {
@@ -332,33 +398,38 @@ export function OrdersTable({
     return true;
   });
 
-  // 페이지네이션 계산
-  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedOrders = filteredOrders.slice(startIndex, endIndex);
+  // 서버 사이드 페이지네이션: 클라이언트에서는 필터링만 수행
+  // 페이지네이션 계산은 전체 데이터 기반
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
+  // 클라이언트 사이드 필터링만 수행 (페이지네이션은 이미 서버에서 처리됨)
+  const paginatedOrders = filteredOrders;
 
   // 검색 초기화
   const handleResetSearch = () => {
-    setOrderSource("all");
-    setSearchName("");
-    setSearchPhone("");
-    setDateRange("all");
-    setStartDate("");
-    setEndDate("");
-    setCurrentPage(1);
+    if (isServerSideSearch && onResetSearch) {
+      // 서버 사이드 검색 모드: 부모 컴포넌트의 초기화 함수 호출
+      onResetSearch();
+    } else {
+      // 클라이언트 사이드 검색 모드
+      setOrderSource("all");
+      setSearchName("");
+      setSearchPhone("");
+      setDateRange("all");
+      setStartDate("");
+      setEndDate("");
+      if (onPageChange) onPageChange(1);
+    }
   };
 
   // 페이지 변경
   const handlePageChange = (page: number) => {
-    setCurrentPage(page);
+    if (onPageChange) onPageChange(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // 페이지당 항목 수 변경
   const handleItemsPerPageChange = (value: string) => {
-    setItemsPerPage(Number(value));
-    setCurrentPage(1);
+    if (onItemsPerPageChange) onItemsPerPageChange(value);
   };
 
   const startEdit = (order: any) => {
@@ -555,28 +626,98 @@ export function OrdersTable({
     );
   };
 
+  // 서버 사이드 검색 실행 핸들러
+  const handleServerSearch = () => {
+    if (isServerSideSearch && onSearchChange) {
+      onSearchChange({
+        searchName,
+        searchPhone,
+        orderSource,
+        startDate,
+        endDate,
+      });
+    }
+  };
+
+  // 검색 필드 변경 시 서버 검색 (Enter 키 또는 검색 버튼)
+  const handleSearchNameChange = (value: string) => {
+    setSearchName(value);
+  };
+  
+  const handleSearchPhoneChange = (value: string) => {
+    setSearchPhone(value);
+  };
+  
+  const handleOrderSourceChange = (value: string) => {
+    setOrderSource(value);
+    // 고객주문처명 변경 시 바로 서버 검색
+    if (isServerSideSearch && onSearchChange) {
+      onSearchChange({
+        searchName,
+        searchPhone,
+        orderSource: value,
+        startDate,
+        endDate,
+      });
+    }
+  };
+  
+  // 날짜 범위 선택 시 서버 검색 (조회기간 드롭다운에서 선택)
+  const handleDateRangeSelect = (newStartDate: string, newEndDate: string) => {
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+    // 날짜 범위 선택 시 바로 서버 검색
+    if (isServerSideSearch && onSearchChange) {
+      onSearchChange({
+        searchName,
+        searchPhone,
+        orderSource,
+        startDate: newStartDate,
+        endDate: newEndDate,
+      });
+    }
+  };
+  
+  // 직접 선택(custom)에서 개별 날짜 변경 시
+  const handleDateChange = (newStartDate: string, newEndDate: string) => {
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+    // 직접 선택 날짜 변경 시 바로 서버 검색
+    if (isServerSideSearch && onSearchChange) {
+      onSearchChange({
+        searchName,
+        searchPhone,
+        orderSource,
+        startDate: newStartDate,
+        endDate: newEndDate,
+      });
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* 검색 및 필터 영역 */}
       <OrderSearchFilter
         searchName={searchName}
-        setSearchName={setSearchName}
+        setSearchName={handleSearchNameChange}
         searchPhone={searchPhone}
-        setSearchPhone={setSearchPhone}
+        setSearchPhone={handleSearchPhoneChange}
+        onSearchSubmit={handleServerSearch}
         orderSource={orderSource}
-        setOrderSource={setOrderSource}
+        setOrderSource={handleOrderSourceChange}
         dateRange={dateRange}
         setDateRange={setDateRange}
         startDate={startDate}
-        setStartDate={setStartDate}
+        setStartDate={(value) => handleDateChange(value, endDate)}
         endDate={endDate}
-        setEndDate={setEndDate}
+        setEndDate={(value) => handleDateChange(startDate, value)}
         itemsPerPage={itemsPerPage}
-        setItemsPerPage={setItemsPerPage}
+        setItemsPerPage={handleItemsPerPageChange}
+        onDateRangeSelect={handleDateRangeSelect}
         filteredCount={filteredOrders.length}
-        totalCount={orders.length}
+        totalCount={totalCount}
         onReset={handleResetSearch}
-        onPageChange={() => setCurrentPage(1)}
+        onPageChange={() => handlePageChange(1)}
         orderSources={ALLOWED_ORDER_SOURCES}
         showOrderSourceFilter={true}
         disableOrderSourceFilter={!!userPartner}
@@ -1126,7 +1267,7 @@ export function OrdersTable({
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-md">
           <div className="text-sm text-gray-500">
-            {startIndex + 1} - {Math.min(endIndex, filteredOrders.length)} / 총 {filteredOrders.length}건
+            {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, totalCount)} / 총 {totalCount.toLocaleString()}건
           </div>
           <div className="flex items-center gap-1">
             <Button

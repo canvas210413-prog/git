@@ -75,25 +75,53 @@ export function ASSearchFilter({
   const handleDateRangeChange = (value: string) => {
     setDateRange(value);
     const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
     
-    if (value === "1day") {
-      setStartDate(today.toISOString().split('T')[0]);
-      setEndDate(today.toISOString().split('T')[0]);
-    } else if (value === "1week") {
-      const weekAgo = new Date(today);
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      setStartDate(weekAgo.toISOString().split('T')[0]);
-      setEndDate(today.toISOString().split('T')[0]);
-    } else if (value === "1month") {
-      const monthAgo = new Date(today);
-      monthAgo.setMonth(monthAgo.getMonth() - 1);
-      setStartDate(monthAgo.toISOString().split('T')[0]);
-      setEndDate(today.toISOString().split('T')[0]);
-    } else if (value === "1year") {
-      const yearAgo = new Date(today);
-      yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-      setStartDate(yearAgo.toISOString().split('T')[0]);
-      setEndDate(today.toISOString().split('T')[0]);
+    if (value === "today") {
+      // 오늘
+      setStartDate(todayStr);
+      setEndDate(todayStr);
+    } else if (value === "yesterday") {
+      // 어제
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      setStartDate(yesterdayStr);
+      setEndDate(yesterdayStr);
+    } else if (value === "7days") {
+      // 최근 7일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 6);
+      setStartDate(daysAgo.toISOString().split('T')[0]);
+      setEndDate(todayStr);
+    } else if (value === "30days") {
+      // 최근 30일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 29);
+      setStartDate(daysAgo.toISOString().split('T')[0]);
+      setEndDate(todayStr);
+    } else if (value === "90days") {
+      // 최근 90일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 89);
+      setStartDate(daysAgo.toISOString().split('T')[0]);
+      setEndDate(todayStr);
+    } else if (value === "180days") {
+      // 최근 180일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 179);
+      setStartDate(daysAgo.toISOString().split('T')[0]);
+      setEndDate(todayStr);
+    } else if (value === "365days") {
+      // 최근 365일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 364);
+      setStartDate(daysAgo.toISOString().split('T')[0]);
+      setEndDate(todayStr);
+    } else if (value === "all") {
+      // 전체 기간
+      setStartDate("");
+      setEndDate("");
     }
     
     onPageChange?.();
@@ -163,11 +191,14 @@ export function ASSearchFilter({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">전체 기간</SelectItem>
-                <SelectItem value="1day">오늘</SelectItem>
-                <SelectItem value="1week">1주일</SelectItem>
-                <SelectItem value="1month">1개월</SelectItem>
-                <SelectItem value="1year">1년</SelectItem>
-                <SelectItem value="custom">직접입력</SelectItem>
+                <SelectItem value="today">오늘</SelectItem>
+                <SelectItem value="yesterday">어제</SelectItem>
+                <SelectItem value="7days">최근 7일</SelectItem>
+                <SelectItem value="30days">최근 30일</SelectItem>
+                <SelectItem value="90days">최근 90일</SelectItem>
+                <SelectItem value="180days">최근 180일</SelectItem>
+                <SelectItem value="365days">최근 365일</SelectItem>
+                <SelectItem value="custom">직접 선택</SelectItem>
               </SelectContent>
             </Select>
           </div>

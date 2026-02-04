@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
-import { Plus, Download, Upload } from "lucide-react";
+import { Plus, Download, Upload, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,6 +18,7 @@ import { OrderExcelToolbar } from "@/components/orders/order-excel-toolbar";
 import { PageHeader } from "@/components/common";
 import { StatCard, StatGrid } from "@/components/common/stat-card";
 import { formatNumber } from "@/lib/utils";
+import { clearTrackingNumbers } from "@/app/actions/orders";
 
 // ============================================================================
 // Types
@@ -41,7 +42,7 @@ interface OrderStatsCardsProps {
 
 function OrderStatsCards({ stats }: OrderStatsCardsProps) {
   return (
-    <StatGrid columns={5}>
+    <StatGrid columns={4}>
       <StatCard
         title="전체 주문"
         value={formatNumber(stats.total)}
@@ -51,12 +52,6 @@ function OrderStatsCards({ stats }: OrderStatsCardsProps) {
         title="대기"
         value={formatNumber(stats.pending)}
         icon="clock"
-      />
-      <StatCard
-        title="처리중"
-        value={formatNumber(stats.processing)}
-        icon="package"
-        variant="info"
       />
       <StatCard
         title="배송중"
@@ -80,6 +75,17 @@ function OrderStatsCards({ stats }: OrderStatsCardsProps) {
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+  
+  // 서버 사이드 검색을 위한 상태
+  const [searchName, setSearchName] = useState("");
+  const [searchPhone, setSearchPhone] = useState("");
+  const [orderSource, setOrderSource] = useState("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  
   const [stats, setStats] = useState<OrderStats>({
     total: 0,
     pending: 0,
@@ -93,22 +99,51 @@ export default function OrdersPage() {
   // 데이터 가져오기
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       try {
-        const ordersResponse = await fetch("/api/orders?filter=with-tracking");
+        // 서버 사이드 검색: 모든 검색 조건을 API로 전달
+        const params = new URLSearchParams({
+          filter: 'with-tracking',
+          limit: itemsPerPage.toString(),
+          page: currentPage.toString(),
+        });
+        
+        // 검색 조건 추가 (DB에서 검색)
+        if (searchName.trim()) {
+          params.append('search', searchName.trim());
+        }
+        if (searchPhone.trim()) {
+          params.append('searchPhone', searchPhone.trim());
+        }
+        if (orderSource && orderSource !== 'all') {
+          params.append('orderSource', orderSource);
+        }
+        if (startDate) {
+          params.append('startDate', startDate);
+        }
+        if (endDate) {
+          params.append('endDate', endDate);
+        }
+        
+        const ordersResponse = await fetch(`/api/orders?${params.toString()}`);
         
         if (ordersResponse.ok) {
-          const ordersData = await ordersResponse.json();
+          const result = await ordersResponse.json();
+          const ordersData = result.data || result; // 새 형식 또는 구 형식 호환
+          const total = result.total || ordersData.length;
+          setTotalCount(total);
           setOrders(ordersData);
           
-          // 클라이언트에서 stats 계산
-          const calculatedStats = {
-            total: ordersData.length,
-            pending: ordersData.filter((o: any) => o.status === "PENDING").length,
-            processing: ordersData.filter((o: any) => o.status === "PROCESSING").length,
-            shipped: ordersData.filter((o: any) => o.status === "SHIPPED").length,
-            delivered: ordersData.filter((o: any) => o.status === "DELIVERED").length,
-          };
-          setStats(calculatedStats);
+          // API에서 받은 전체 통계 사용 (페이지 변경 시에도 고정된 값)
+          if (result.stats) {
+            setStats({
+              total: total,
+              pending: result.stats.pending || 0,
+              processing: 0, // 숨김
+              shipped: result.stats.shipped || 0,
+              delivered: result.stats.delivered || 0,
+            });
+          }
         }
       } catch (error) {
         console.error("Failed to fetch data:", error);
@@ -118,7 +153,33 @@ export default function OrdersPage() {
     };
     
     fetchData();
-  }, []);
+  }, [currentPage, itemsPerPage, searchName, searchPhone, orderSource, startDate, endDate]); // 검색 조건 변경 시도 재호출
+
+  // 검색 조건 변경 핸들러 (자식 컴포넌트에서 호출)
+  const handleSearchChange = (params: {
+    searchName?: string;
+    searchPhone?: string;
+    orderSource?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => {
+    if (params.searchName !== undefined) setSearchName(params.searchName);
+    if (params.searchPhone !== undefined) setSearchPhone(params.searchPhone);
+    if (params.orderSource !== undefined) setOrderSource(params.orderSource);
+    if (params.startDate !== undefined) setStartDate(params.startDate);
+    if (params.endDate !== undefined) setEndDate(params.endDate);
+    setCurrentPage(1); // 검색 시 첫 페이지로 이동
+  };
+
+  // 검색 초기화
+  const handleResetSearch = () => {
+    setSearchName("");
+    setSearchPhone("");
+    setOrderSource("all");
+    setStartDate("");
+    setEndDate("");
+    setCurrentPage(1);
+  };
 
   // 전체 다운로드
   const handleDownloadAll = () => {
@@ -224,6 +285,34 @@ export default function OrdersPage() {
     XLSX.writeFile(wb, `주문데이터_선택항목_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
+  // 선택된 주문의 운송장번호 삭제
+  const handleClearTrackingNumbers = async () => {
+    if (selectedOrderIds.size === 0) {
+      alert("운송장번호를 삭제할 주문을 선택해주세요.");
+      return;
+    }
+
+    if (!confirm(`선택된 ${selectedOrderIds.size}건의 운송장번호를 삭제하시겠습니까?\n(주문 자체는 삭제되지 않고 운송장번호만 비워집니다)`)) {
+      return;
+    }
+
+    try {
+      const result = await clearTrackingNumbers(Array.from(selectedOrderIds));
+      
+      if (result.success) {
+        alert(`${result.data?.cleared || 0}건의 운송장번호가 삭제되었습니다.`);
+        setSelectedOrderIds(new Set());
+        // 페이지 새로고침 (운송장번호가 없어지면 이 페이지에서 사라짐)
+        window.location.reload();
+      } else {
+        alert(`오류: ${result.error?.message || "운송장번호 삭제에 실패했습니다."}`);
+      }
+    } catch (error) {
+      console.error("운송장번호 삭제 오류:", error);
+      alert("운송장번호 삭제 중 오류가 발생했습니다.");
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -236,9 +325,21 @@ export default function OrdersPage() {
     <div className="space-y-6">
       <PageHeader
         title="주문 데이터 통합(고객상세조회)"
-        description="배송정보가 등록 완료된 주문만 표시됩니다. 엑셀처럼 그리드에서 직접 편집, 추가, 삭제가 가능합니다."
+        description={`배송정보가 등록 완료된 주문만 표시됩니다. 엑셀처럼 그리드에서 직접 편집, 추가, 삭제가 가능합니다. (표시: ${orders.length}건 / 전체: ${totalCount.toLocaleString()}건)`}
       >
         <div className="flex items-center gap-3">
+          {/* 운송장번호 삭제 버튼 */}
+          {selectedOrderIds.size > 0 && (
+            <Button 
+              variant="destructive" 
+              size="default" 
+              onClick={handleClearTrackingNumbers}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              운송장번호 삭제 ({selectedOrderIds.size}건)
+            </Button>
+          )}
+
           {/* 신규 등록 */}
           <AddOrderDialog>
             <Button variant="default" size="default" className="bg-blue-600 hover:bg-blue-700">
@@ -282,8 +383,24 @@ export default function OrdersPage() {
       {/* 인라인 편집 가능한 테이블 */}
       <OrdersTable 
         orders={orders}
+        totalCount={totalCount}
+        currentPage={currentPage}
+        itemsPerPage={itemsPerPage}
+        onPageChange={setCurrentPage}
+        onItemsPerPageChange={(value) => {
+          setItemsPerPage(Number(value));
+          setCurrentPage(1);
+        }}
         selectedOrderIds={selectedOrderIds}
         onSelectionChange={setSelectedOrderIds}
+        // 서버 사이드 검색 props
+        searchName={searchName}
+        searchPhone={searchPhone}
+        orderSource={orderSource}
+        startDate={startDate}
+        endDate={endDate}
+        onSearchChange={handleSearchChange}
+        onResetSearch={handleResetSearch}
       />
     </div>
   );

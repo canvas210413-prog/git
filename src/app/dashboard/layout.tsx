@@ -54,6 +54,7 @@ const noPermissionCheckPaths = [
   '/dashboard',
   '/dashboard/unauthorized',
   '/dashboard/messages', // 메시지함 - 모든 사용자 접근 가능
+  '/dashboard/settings/change-password', // 비밀번호 변경 - 모든 사용자 접근 가능
 ];
 
 export default async function DashboardLayout({

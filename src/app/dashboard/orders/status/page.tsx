@@ -86,6 +86,7 @@ function OrderSourceStatsCards({ stats }: OrderSourceStatsCardsProps) {
 
 export default function OrderStatusPage() {
   const [orders, setOrders] = useState<any[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [activeTab, setActiveTab] = useState<"pending" | "completed">("pending");
@@ -100,13 +101,16 @@ export default function OrderStatusPage() {
   // 허용된 고객주문처명 목록
   const ALLOWED_ORDER_SOURCES = ["본사", "로켓그로스", "그로트", "스몰닷", "해피포즈", "기타"];
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (filter?: string) => {
     setLoading(true);
     try {
-      // 모든 주문 가져오기 (미등록 + 등록완료 모두)
-      const response = await fetch("/api/orders");
+      // 필터에 따라 API 호출 - pending 탭은 pending-delivery, completed 탭은 with-tracking
+      const filterParam = filter || (activeTab === "pending" ? "pending-delivery" : "with-tracking");
+      const response = await fetch(`/api/orders?filter=${filterParam}&limit=500`);
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result; // 새 형식 또는 구 형식 호환
+        setTotalCount(result.total || data.length);
         // Date 객체를 문자열로 변환 및 orderSource 정규화
         const processedOrders = data.map((order: any) => {
           // orderSource 정규화: 허용된 값이 아니면 "본사"로 설정
@@ -142,11 +146,11 @@ export default function OrderStatusPage() {
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [activeTab]); // activeTab 변경 시 데이터 다시 가져오기
 
-  // 탭별 주문 필터링
-  const pendingOrders = orders.filter((order) => !order.trackingNumber);
-  const completedOrders = orders.filter((order) => order.trackingNumber);
+  // 탭별 주문 필터링 - 이제 서버에서 필터링되므로 클라이언트 필터링 불필요
+  const pendingOrders = activeTab === "pending" ? orders : [];
+  const completedOrders = activeTab === "completed" ? orders : [];
 
   // 현재 활성 탭의 주문 목록
   const displayOrders = activeTab === "pending" ? pendingOrders : completedOrders;
@@ -463,7 +467,7 @@ export default function OrderStatusPage() {
     <div className="space-y-6">
       <PageHeader
         title="주문상태확인(협력사)"
-        description="모든 주문을 확인하고 배송정보를 관리하세요."
+        description={`모든 주문을 확인하고 배송정보를 관리하세요. (표시: ${orders.length}건 / 전체: ${totalCount.toLocaleString()}건)`}
       >
         <div className="flex items-center gap-3">
           {/* 신규 주문 등록 */}

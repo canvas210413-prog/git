@@ -9,6 +9,16 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const filter = searchParams.get('filter') || 'all';
+    const limit = parseInt(searchParams.get('limit') || '1000'); // 기본 1000개로 제한
+    const page = parseInt(searchParams.get('page') || '1');
+    const skip = (page - 1) * limit;
+    
+    // 검색 파라미터 (2023년 조보은 같은 예전 데이터도 검색 가능하도록)
+    const search = searchParams.get('search') || ''; // 고객명 검색
+    const searchPhone = searchParams.get('searchPhone') || ''; // 전화번호 검색
+    const startDate = searchParams.get('startDate') || ''; // 시작일
+    const endDate = searchParams.get('endDate') || ''; // 종료일
+    const orderSourceParam = searchParams.get('orderSource') || 'all'; // 고객주문처명
 
     // 현재 사용자의 협력사 정보 조회
     const session = await getServerSession(authOptions);
@@ -16,11 +26,120 @@ export async function GET(request: NextRequest) {
     
     // 협력사 필터 조건 생성 (본사는 전체 접근)
     const partnerFilter = assignedPartner ? { orderSource: assignedPartner } : {};
+    
+    // 고객주문처명 필터 (협력사 계정이 아닌 경우에만 적용)
+    let orderSourceFilter: any = {};
+    if (!assignedPartner && orderSourceParam && orderSourceParam !== 'all') {
+      orderSourceFilter = { orderSource: orderSourceParam };
+    }
+    
+    // 검색 필터 조건 생성
+    let searchFilter: any = {};
+    if (search.trim()) {
+      // 고객명 검색 (recipientName, ordererName 모두 검색)
+      searchFilter.OR = [
+        { recipientName: { contains: search.trim() } },
+        { ordererName: { contains: search.trim() } },
+      ];
+    }
+    
+    // 전화번호 검색 필터
+    let phoneFilter: any = {};
+    if (searchPhone.trim()) {
+      phoneFilter.OR = [
+        { recipientPhone: { contains: searchPhone.trim() } },
+        { recipientMobile: { contains: searchPhone.trim() } },
+        { contactPhone: { contains: searchPhone.trim() } },
+      ];
+    }
+    
+    // 날짜 필터 조건 생성
+    let dateFilter: any = {};
+    if (startDate && endDate) {
+      dateFilter.orderDate = {
+        gte: new Date(startDate + 'T00:00:00'),
+        lte: new Date(endDate + 'T23:59:59'),
+      };
+    } else if (startDate) {
+      dateFilter.orderDate = {
+        gte: new Date(startDate + 'T00:00:00'),
+      };
+    } else if (endDate) {
+      dateFilter.orderDate = {
+        lte: new Date(endDate + 'T23:59:59'),
+      };
+    }
 
-    // 기존 CRM Order 조회
+    // 필터에 따른 where 조건 추가
+    let trackingFilter = {};
+    if (filter === 'pending-delivery' || filter === 'delivery-ready') {
+      trackingFilter = { OR: [{ trackingNumber: null }, { trackingNumber: "" }] };
+    } else if (filter === 'with-tracking') {
+      trackingFilter = { 
+        trackingNumber: { not: null },
+        NOT: { trackingNumber: "" }
+      };
+    }
+
+    // 전체 개수 조회 (페이지네이션 정보용)
+    const totalOrdersCount = await prisma.order.count({
+      where: { ...partnerFilter, ...orderSourceFilter, ...trackingFilter, ...searchFilter, ...phoneFilter, ...dateFilter },
+    });
+
+    // 각 상태별 전체 개수 조회 (통계용 - with-tracking 필터에만 적용)
+    const [pendingCount, shippedCount, deliveredCount] = await Promise.all([
+      // 대기: pending-delivery 필터 (운송장 없는 주문)
+      prisma.order.count({
+        where: { 
+          ...partnerFilter,
+          OR: [{ trackingNumber: null }, { trackingNumber: "" }]
+        },
+      }),
+      // 배송중: 운송장 있고 SHIPPED 상태
+      prisma.order.count({
+        where: { 
+          ...partnerFilter,
+          ...trackingFilter,
+          status: "SHIPPED"
+        },
+      }),
+      // 배송완료: DELIVERED 상태
+      prisma.order.count({
+        where: { 
+          ...partnerFilter,
+          ...trackingFilter,
+          status: "DELIVERED"
+        },
+      }),
+    ]);
+
+    // 기존 CRM Order 조회 - 최적화: 필요한 필드만 select
     const ordersRaw = await prisma.order.findMany({
-      where: partnerFilter, // 협력사 필터 적용
-      include: {
+      where: { ...partnerFilter, ...orderSourceFilter, ...trackingFilter, ...searchFilter, ...phoneFilter, ...dateFilter }, // 모든 필터 적용
+      select: {
+        id: true,
+        orderNumber: true,
+        orderDate: true,
+        totalAmount: true,
+        basePrice: true,
+        shippingFee: true,
+        status: true,
+        ordererName: true,
+        contactPhone: true,
+        recipientName: true,
+        recipientPhone: true,
+        recipientMobile: true,
+        recipientZipCode: true,
+        recipientAddr: true,
+        productInfo: true,
+        deliveryMsg: true,
+        orderSource: true,
+        courier: true,
+        trackingNumber: true,
+        giftSent: true,
+        createdAt: true,
+        updatedAt: true,
+        customerId: true,
         customer: {
           select: {
             id: true,
@@ -30,9 +149,12 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: {
-        orderDate: "desc",
-      },
+      orderBy: [
+        { orderDate: "desc" },  // 주문 날짜 역순 (최근 날짜 먼저)
+        { createdAt: "desc" },  // 같은 날짜 내에서는 등록 순서 역순
+      ],
+      take: limit,
+      skip: skip,
     });
 
     // 숫자 필드를 명시적으로 변환
@@ -44,10 +166,47 @@ export async function GET(request: NextRequest) {
 
     // MallOrder 조회 (협력사 계정이면 MallOrder 제외)
     let convertedMallOrders: any[] = [];
+    let totalMallOrdersCount = 0;
     if (!assignedPartner) {
+      // MallOrder 필터 조건
+      let mallTrackingFilter = {};
+      if (filter === 'pending-delivery' || filter === 'delivery-ready') {
+        mallTrackingFilter = { OR: [{ trackingNumber: null }, { trackingNumber: "" }] };
+      } else if (filter === 'with-tracking') {
+        mallTrackingFilter = { 
+          trackingNumber: { not: null },
+          NOT: { trackingNumber: "" }
+        };
+      }
+
+      // MallOrder 전체 개수
+      totalMallOrdersCount = await prisma.mallorder.count({
+        where: mallTrackingFilter,
+      });
+
       // 본사 계정만 MallOrder 조회 가능
       const mallOrders = await prisma.mallorder.findMany({
-        include: {
+        where: mallTrackingFilter,
+        select: {
+          id: true,
+          orderNumber: true,
+          items: true,
+          status: true,
+          customerName: true,
+          customerPhone: true,
+          customerEmail: true,
+          shippingAddress: true,
+          recipientAddr: true,
+          recipientZip: true,
+          deliveryMsg: true,
+          courier: true,
+          trackingNumber: true,
+          totalAmount: true,
+          subtotal: true,
+          shippingFee: true,
+          createdAt: true,
+          updatedAt: true,
+          userId: true,
           malluser: {
             select: {
               id: true,
@@ -60,6 +219,8 @@ export async function GET(request: NextRequest) {
         orderBy: {
           createdAt: "desc",
         },
+        take: limit,
+        skip: skip,
       });
 
       // MallOrder를 Order 형식으로 변환
@@ -67,7 +228,8 @@ export async function GET(request: NextRequest) {
       // items JSON 파싱
       let productInfo = "-";
       try {
-        const items = JSON.parse(mallOrder.items);
+        const itemsStr = mallOrder.items ? String(mallOrder.items) : "[]";
+        const items = JSON.parse(itemsStr);
         if (Array.isArray(items) && items.length > 0) {
           productInfo = items.map((item: any) => item.productName || item.name || "상품").join(", ");
         }
@@ -102,13 +264,11 @@ export async function GET(request: NextRequest) {
         totalAmount: mallOrder.totalAmount,
         orderSource: "MALL",
         productInfo,
-        recipientName: mallOrder.shippingName || mallOrder.recipientName,
+        recipientName: mallOrder.customerName,
         recipientAddr: mallOrder.shippingAddress || mallOrder.recipientAddr,
         courier: mallOrder.courier,
         trackingNumber: mallOrder.trackingNumber,
         deliveryStatus: deliveryStatusMap[mallOrder.status] || "PENDING",
-        shippedAt: mallOrder.shippedAt?.toISOString() || null,
-        deliveredAt: mallOrder.deliveredAt?.toISOString() || null,
         customer: {
           id: mallOrder.malluser?.id?.toString() || mallOrder.id,
           name: mallOrder.customerName || mallOrder.malluser?.name || "-",
@@ -119,21 +279,24 @@ export async function GET(request: NextRequest) {
     });
     } // MallOrder 조회 if 문 닫기
 
-    // 두 배열 합치기 (날짜순 정렬)
-    let allOrders = [...orders, ...convertedMallOrders].sort((a, b) => {
+    // 두 배열 합치기 (날짜순 정렬) - 필터링은 이미 where 조건에서 처리됨
+    const allOrders = [...orders, ...convertedMallOrders].sort((a, b) => {
       return new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime();
     });
 
-    // 필터 적용
-    if (filter === 'pending-delivery') {
-      // 배송정보 미등록 (주문상태확인용)
-      allOrders = allOrders.filter((order: any) => !order.trackingNumber);
-    } else if (filter === 'with-tracking') {
-      // 배송정보 등록 완료 (주문데이터통합용) - 운송장번호만 있으면 OK
-      allOrders = allOrders.filter((order: any) => order.trackingNumber);
-    }
-
-    return NextResponse.json(allOrders);
+    // 전체 개수와 데이터를 함께 반환
+    return NextResponse.json({
+      data: allOrders,
+      total: totalOrdersCount + totalMallOrdersCount,
+      limit: limit,
+      page: page,
+      hasMore: (totalOrdersCount + totalMallOrdersCount) > (page * limit),
+      stats: {
+        pending: pendingCount,
+        shipped: shippedCount,
+        delivered: deliveredCount,
+      },
+    });
   } catch (error) {
     console.error("Failed to fetch orders:", error);
     return NextResponse.json(

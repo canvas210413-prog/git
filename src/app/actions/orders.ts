@@ -1033,3 +1033,83 @@ export async function getOrderStats(): Promise<OrderStats> {
     };
   }
 }
+
+/**
+ * 선택된 주문들의 운송장번호를 삭제합니다.
+ * @param orderIds - 운송장번호를 삭제할 주문 ID 배열
+ */
+export async function clearTrackingNumbers(
+  orderIds: string[]
+): Promise<ApiResponse<{ cleared: number }>> {
+  console.log(`🗑️ [clearTrackingNumbers] ${orderIds.length}건 운송장번호 삭제 시작`);
+
+  if (!orderIds || orderIds.length === 0) {
+    return {
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "삭제할 주문을 선택해주세요.",
+      },
+    };
+  }
+
+  try {
+    // MallOrder와 Order를 구분하여 처리
+    const mallOrderIds = orderIds.filter(id => id.startsWith("mall_"));
+    const crmOrderIds = orderIds.filter(id => !id.startsWith("mall_"));
+
+    let clearedCount = 0;
+
+    // CRM Order 운송장번호 삭제
+    if (crmOrderIds.length > 0) {
+      const crmResult = await prisma.order.updateMany({
+        where: {
+          id: { in: crmOrderIds },
+        },
+        data: {
+          trackingNumber: null,
+          courier: null,
+        },
+      });
+      clearedCount += crmResult.count;
+      console.log(`✅ [clearTrackingNumbers] CRM Order ${crmResult.count}건 운송장번호 삭제`);
+    }
+
+    // MallOrder 운송장번호 삭제
+    if (mallOrderIds.length > 0) {
+      const actualMallIds = mallOrderIds.map(id => id.replace("mall_", ""));
+      const mallResult = await prisma.mallOrder.updateMany({
+        where: {
+          id: { in: actualMallIds },
+        },
+        data: {
+          trackingNumber: null,
+          courier: null,
+        },
+      });
+      clearedCount += mallResult.count;
+      console.log(`✅ [clearTrackingNumbers] MallOrder ${mallResult.count}건 운송장번호 삭제`);
+    }
+
+    revalidatePath("/dashboard/orders");
+    revalidatePath("/dashboard/orders/status");
+
+    console.log(`✅ [clearTrackingNumbers] 총 ${clearedCount}건 운송장번호 삭제 완료`);
+
+    return {
+      success: true,
+      data: { cleared: clearedCount },
+    };
+  } catch (error) {
+    console.error("[clearTrackingNumbers] Error:", error);
+    return {
+      success: false,
+      error: {
+        code: "SERVER_ERROR",
+        message: error instanceof Error 
+          ? `운송장번호 삭제에 실패했습니다: ${error.message}`
+          : "운송장번호 삭제에 실패했습니다",
+      },
+    };
+  }
+}

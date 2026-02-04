@@ -133,10 +133,10 @@ const sweetTrackerCouriers = [
   { code: "54", name: "홈픽택배" },
 ];
 
-// 택배사 목록 (기존 - 직접 링크용)
+// 택배사 목록 (기존 - 직접 링크용) - 한진택배 상단 배치
 const courierList = [
-  { code: "CJ", name: "CJ대한통운", trackingUrl: "https://www.cjlogistics.com/ko/tool/parcel/tracking?gnbInvcNo=", sweetCode: "04" },
   { code: "HANJIN", name: "한진택배", trackingUrl: "https://www.hanjin.com/kor/CMS/DeliveryMgr/WaybillResult.do?mession-open&wblnum=", sweetCode: "05" },
+  { code: "CJ", name: "CJ대한통운", trackingUrl: "https://www.cjlogistics.com/ko/tool/parcel/tracking?gnbInvcNo=", sweetCode: "04" },
   { code: "LOTTE", name: "롯데택배", trackingUrl: "https://www.lotteglogis.com/home/reservation/tracking/linkView?InvNo=", sweetCode: "08" },
   { code: "LOGEN", name: "로젠택배", trackingUrl: "https://www.ilogen.com/web/personal/trace/", sweetCode: "06" },
   { code: "POST", name: "우체국택배", trackingUrl: "https://service.epost.go.kr/trace.RetrieveDomRi498.comm?displayHeader=N&sid1=", sweetCode: "01" },
@@ -152,6 +152,7 @@ export default function DeliveryIntegrationPage() {
   const userPartner = (session?.user as { assignedPartner?: string | null })?.assignedPartner || null;
   
   const [orders, setOrders] = useState<Order[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -299,7 +300,9 @@ export default function DeliveryIntegrationPage() {
       // 배송정보 미등록 주문 가져오기
       const response = await fetch("/api/orders?filter=pending-delivery");
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
+        setTotalCount(result.total || data.length);
         setOrders(data);
         setFilteredOrders(data);
       }
@@ -314,9 +317,11 @@ export default function DeliveryIntegrationPage() {
   const fetchPendingOrders = async () => {
     setLoadingPending(true);
     try {
-      const response = await fetch("/api/orders?filter=pending-delivery");
+      const response = await fetch("/api/orders?filter=pending-delivery&limit=500&limit=500");
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
+        setTotalCount(result.total || data.length);
         setPendingOrders(data);
         
         // 미등록 주문을 메인 테이블에 합치기 (중복 제거)
@@ -373,22 +378,43 @@ export default function DeliveryIntegrationPage() {
       result = result.filter((order) => {
         const orderDate = new Date(order.orderDate);
         
-        if (dateRange === "1day") {
+        if (dateRange === "today") {
+          // 오늘
           const orderDay = new Date(orderDate);
           orderDay.setHours(0, 0, 0, 0);
           return orderDay.getTime() === today.getTime();
-        } else if (dateRange === "1week") {
-          const weekAgo = new Date(today);
-          weekAgo.setDate(weekAgo.getDate() - 7);
-          return orderDate >= weekAgo;
-        } else if (dateRange === "1month") {
-          const monthAgo = new Date(today);
-          monthAgo.setMonth(monthAgo.getMonth() - 1);
-          return orderDate >= monthAgo;
-        } else if (dateRange === "1year") {
-          const yearAgo = new Date(today);
-          yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-          return orderDate >= yearAgo;
+        } else if (dateRange === "yesterday") {
+          // 어제
+          const yesterday = new Date(today);
+          yesterday.setDate(yesterday.getDate() - 1);
+          const orderDay = new Date(orderDate);
+          orderDay.setHours(0, 0, 0, 0);
+          return orderDay.getTime() === yesterday.getTime();
+        } else if (dateRange === "7days") {
+          // 최근 7일
+          const daysAgo = new Date(today);
+          daysAgo.setDate(daysAgo.getDate() - 6);
+          return orderDate >= daysAgo;
+        } else if (dateRange === "30days") {
+          // 최근 30일
+          const daysAgo = new Date(today);
+          daysAgo.setDate(daysAgo.getDate() - 29);
+          return orderDate >= daysAgo;
+        } else if (dateRange === "90days") {
+          // 최근 90일
+          const daysAgo = new Date(today);
+          daysAgo.setDate(daysAgo.getDate() - 89);
+          return orderDate >= daysAgo;
+        } else if (dateRange === "180days") {
+          // 최근 180일
+          const daysAgo = new Date(today);
+          daysAgo.setDate(daysAgo.getDate() - 179);
+          return orderDate >= daysAgo;
+        } else if (dateRange === "365days") {
+          // 최근 365일
+          const daysAgo = new Date(today);
+          daysAgo.setDate(daysAgo.getDate() - 364);
+          return orderDate >= daysAgo;
         } else if (dateRange === "custom" && startDate && endDate) {
           const start = new Date(startDate);
           const end = new Date(endDate);
@@ -464,7 +490,7 @@ export default function DeliveryIntegrationPage() {
 
       if (result.success) {
         // 저장 후 전체 목록 새로고침 (배송정보 등록된 주문만)
-        const response = await fetch("/api/orders?filter=with-tracking");
+        const response = await fetch("/api/orders?filter=with-tracking&limit=500");
         if (response.ok) {
           const data = await response.json();
           setOrders(data);

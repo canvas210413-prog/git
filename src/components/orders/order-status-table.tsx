@@ -100,14 +100,25 @@ export function OrderStatusTable({
   // 현재 사용자의 협력사 정보 (null이면 본사 - 전체 접근)
   const userPartner = (session?.user as { assignedPartner?: string | null })?.assignedPartner || null;
   
-  // 초기 주문 목록을 날짜순으로 정렬
-  const sortOrdersByDate = (orderList: Order[]) => {
+  // 초기 주문 목록을 주문날짜 역순 정렬, 같은 날짜 내에서는 생성일시 역순
+  const sortOrdersByDateAndCreatedAt = (orderList: Order[]) => {
     return [...orderList].sort((a, b) => {
-      return new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime();
+      // 먼저 orderDate로 정렬 (역순: 최근 날짜 먼저)
+      const aDate = new Date(a.orderDate).setHours(0, 0, 0, 0);
+      const bDate = new Date(b.orderDate).setHours(0, 0, 0, 0);
+      
+      if (aDate !== bDate) {
+        return bDate - aDate; // 날짜 역순
+      }
+      
+      // 같은 날짜인 경우 createdAt으로 정렬 (역순)
+      const aTime = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : new Date(a.orderDate).getTime();
+      const bTime = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : new Date(b.orderDate).getTime();
+      return bTime - aTime;
     });
   };
 
-  const [orders, setOrders] = useState(sortOrdersByDate(initialOrders));
+  const [orders, setOrders] = useState(sortOrdersByDateAndCreatedAt(initialOrders));
   const [isPending, startTransition] = useTransition();
 
   // initialOrders가 변경될 때 병합 업데이트 (낙관적 업데이트 유지)
@@ -123,7 +134,7 @@ export function OrderStatusTable({
         return prevOrder || newOrder;
       });
       
-      return sortOrdersByDate(mergedOrders);
+      return sortOrdersByDateAndCreatedAt(mergedOrders);
     });
   }, [initialOrders]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -247,8 +258,8 @@ export function OrderStatusTable({
 
   // 택배사 목록
   const courierList = [
-    { code: "CJ", name: "CJ대한통운" },
     { code: "HANJIN", name: "한진택배" },
+    { code: "CJ", name: "CJ대한통운" },
     { code: "LOTTE", name: "롯데택배" },
     { code: "LOGEN", name: "로젠택배" },
     { code: "POST", name: "우체국택배" },
@@ -313,28 +324,55 @@ export function OrderStatusTable({
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    if (dateRange === "1day") {
+    if (dateRange === "today") {
+      // 오늘
       const orderDay = new Date(orderDate);
       orderDay.setHours(0, 0, 0, 0);
       if (orderDay.getTime() !== today.getTime()) {
         return false;
       }
-    } else if (dateRange === "1week") {
-      const weekAgo = new Date(today);
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      if (orderDate < weekAgo) {
+    } else if (dateRange === "yesterday") {
+      // 어제
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const orderDay = new Date(orderDate);
+      orderDay.setHours(0, 0, 0, 0);
+      if (orderDay.getTime() !== yesterday.getTime()) {
         return false;
       }
-    } else if (dateRange === "1month") {
-      const monthAgo = new Date(today);
-      monthAgo.setMonth(monthAgo.getMonth() - 1);
-      if (orderDate < monthAgo) {
+    } else if (dateRange === "7days") {
+      // 최근 7일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 6);
+      if (orderDate < daysAgo) {
         return false;
       }
-    } else if (dateRange === "1year") {
-      const yearAgo = new Date(today);
-      yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-      if (orderDate < yearAgo) {
+    } else if (dateRange === "30days") {
+      // 최근 30일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 29);
+      if (orderDate < daysAgo) {
+        return false;
+      }
+    } else if (dateRange === "90days") {
+      // 최근 90일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 89);
+      if (orderDate < daysAgo) {
+        return false;
+      }
+    } else if (dateRange === "180days") {
+      // 최근 180일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 179);
+      if (orderDate < daysAgo) {
+        return false;
+      }
+    } else if (dateRange === "365days") {
+      // 최근 365일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 364);
+      if (orderDate < daysAgo) {
         return false;
       }
     } else if (dateRange === "custom" && startDate && endDate) {

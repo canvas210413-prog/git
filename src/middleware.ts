@@ -12,6 +12,7 @@ const publicPaths = [
 const authOnlyPaths = [
   "/dashboard", // 대시보드 홈 (정확히 일치해야 함)
   "/dashboard/messages", // 메시지함 - 모든 사용자 접근 가능
+  "/dashboard/settings/change-password", // 비밀번호 변경 - 모든 사용자 접근 가능
 ];
 
 // API 경로는 인증만 체크하고 권한 체크는 API 내부에서 처리
@@ -48,7 +49,9 @@ export default withAuth(
 
     // 공개 경로는 인증 없이 통과
     if (publicPaths.some(path => pathname.startsWith(path))) {
-      return NextResponse.next();
+      const response = NextResponse.next();
+      response.headers.set('x-pathname', pathname);
+      return response;
     }
 
     // API 경로는 인증만 체크 (권한은 API 내부에서 처리)
@@ -58,7 +61,9 @@ export default withAuth(
 
     // 정확히 /dashboard 경로만 인증만 필요
     if (authOnlyPaths.includes(pathname)) {
-      return NextResponse.next();
+      const response = NextResponse.next();
+      response.headers.set('x-pathname', pathname);
+      return response;
     }
 
     // 권한 체크
@@ -84,7 +89,9 @@ export default withAuth(
       return NextResponse.redirect(new URL('/dashboard/unauthorized', req.url));
     }
 
-    return NextResponse.next();
+    const response = NextResponse.next();
+    response.headers.set('x-pathname', pathname);
+    return response;
   },
   {
     callbacks: {

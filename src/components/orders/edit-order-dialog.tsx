@@ -57,9 +57,8 @@ const ALLOWED_ORDER_SOURCES = ["본사", "로켓그로스", "그로트", "스몰
 
 // 택배사 목록
 const courierList = [
-  { code: "NONE", name: "선택안함" },
-  { code: "CJ", name: "CJ대한통운" },
   { code: "HANJIN", name: "한진택배" },
+  { code: "CJ", name: "CJ대한통운" },
   { code: "LOTTE", name: "롯데택배" },
   { code: "LOGEN", name: "로젠택배" },
   { code: "POST", name: "우체국택배" },
@@ -192,9 +191,28 @@ export function EditOrderDialog({
       const basePrice = order.basePrice ?? (Number(order.totalAmount || 0) - Number(order.shippingFee || 0));
       
       // productInfo에서 상품명과 수량 추출하여 매칭
-      // 형식: "상품명(2개), 상품명2" 또는 "상품명, 상품명2"
+      // 형식: "상품명(2개), 상품명2" 또는 "상품명, 상품명2" 또는 "상품명 x 2"
       const productInfo = order.productInfo || "";
       const quantities: Record<string, number> = {};
+      
+      // 상품명 매칭 함수: 정확한 일치 또는 포함 관계 확인
+      const findMatchingProduct = (searchName: string) => {
+        const normalizedSearch = searchName.trim().toLowerCase();
+        
+        // 1. 정확한 이름 매칭
+        let matched = baseProducts.find(p => p.name.toLowerCase() === normalizedSearch);
+        if (matched) return matched;
+        
+        // 2. 기준상품 이름이 검색어에 포함된 경우 (예: "매일두유 99box" -> "매일두유")
+        matched = baseProducts.find(p => normalizedSearch.includes(p.name.toLowerCase()));
+        if (matched) return matched;
+        
+        // 3. 검색어가 기준상품 이름에 포함된 경우 (예: "두유" -> "매일두유")
+        matched = baseProducts.find(p => p.name.toLowerCase().includes(normalizedSearch));
+        if (matched) return matched;
+        
+        return null;
+      };
       
       if (productInfo) {
         // 쉼표로 분리된 각 상품 항목 처리
@@ -202,7 +220,12 @@ export function EditOrderDialog({
         
         items.forEach(item => {
           // "상품명(3개)" 형식 확인
-          const qtyMatch = item.match(/^(.+?)\((\d+)개\)$/);
+          let qtyMatch = item.match(/^(.+?)\((\d+)개\)$/);
+          
+          // "상품명 x 3" 또는 "상품명 X 3" 형식 확인
+          if (!qtyMatch) {
+            qtyMatch = item.match(/^(.+?)\s*[xX×]\s*(\d+)$/);
+          }
           
           if (qtyMatch) {
             // 수량이 명시된 경우
@@ -210,16 +233,16 @@ export function EditOrderDialog({
             const qty = parseInt(qtyMatch[2], 10);
             
             // 상품명으로 baseProducts에서 찾기
-            const matchedProduct = baseProducts.find(p => p.name === productName);
+            const matchedProduct = findMatchingProduct(productName);
             if (matchedProduct) {
-              quantities[matchedProduct.id] = qty;
+              quantities[matchedProduct.id] = (quantities[matchedProduct.id] || 0) + qty;
             }
           } else {
             // 수량 없이 상품명만 있는 경우 (기본 수량 1)
             const productName = item.trim();
-            const matchedProduct = baseProducts.find(p => p.name === productName);
+            const matchedProduct = findMatchingProduct(productName);
             if (matchedProduct) {
-              quantities[matchedProduct.id] = 1;
+              quantities[matchedProduct.id] = (quantities[matchedProduct.id] || 0) + 1;
             }
           }
         });

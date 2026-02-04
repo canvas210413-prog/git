@@ -278,28 +278,55 @@ export default function AfterServicePage() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      if (dateRange === "1day") {
+      if (dateRange === "today") {
+        // 오늘
         const itemDay = new Date(receivedDate);
         itemDay.setHours(0, 0, 0, 0);
         if (itemDay.getTime() !== today.getTime()) {
           return false;
         }
-      } else if (dateRange === "1week") {
-        const weekAgo = new Date(today);
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        if (receivedDate < weekAgo) {
+      } else if (dateRange === "yesterday") {
+        // 어제
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const itemDay = new Date(receivedDate);
+        itemDay.setHours(0, 0, 0, 0);
+        if (itemDay.getTime() !== yesterday.getTime()) {
           return false;
         }
-      } else if (dateRange === "1month") {
-        const monthAgo = new Date(today);
-        monthAgo.setMonth(monthAgo.getMonth() - 1);
-        if (receivedDate < monthAgo) {
+      } else if (dateRange === "7days") {
+        // 최근 7일
+        const daysAgo = new Date(today);
+        daysAgo.setDate(daysAgo.getDate() - 6);
+        if (receivedDate < daysAgo) {
           return false;
         }
-      } else if (dateRange === "1year") {
-        const yearAgo = new Date(today);
-        yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-        if (receivedDate < yearAgo) {
+      } else if (dateRange === "30days") {
+        // 최근 30일
+        const daysAgo = new Date(today);
+        daysAgo.setDate(daysAgo.getDate() - 29);
+        if (receivedDate < daysAgo) {
+          return false;
+        }
+      } else if (dateRange === "90days") {
+        // 최근 90일
+        const daysAgo = new Date(today);
+        daysAgo.setDate(daysAgo.getDate() - 89);
+        if (receivedDate < daysAgo) {
+          return false;
+        }
+      } else if (dateRange === "180days") {
+        // 최근 180일
+        const daysAgo = new Date(today);
+        daysAgo.setDate(daysAgo.getDate() - 179);
+        if (receivedDate < daysAgo) {
+          return false;
+        }
+      } else if (dateRange === "365days") {
+        // 최근 365일
+        const daysAgo = new Date(today);
+        daysAgo.setDate(daysAgo.getDate() - 364);
+        if (receivedDate < daysAgo) {
           return false;
         }
       } else if (dateRange === "custom" && startDate && endDate) {

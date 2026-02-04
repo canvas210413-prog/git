@@ -241,19 +241,43 @@ export function OrderStatusExcelToolbar({ orders }: OrderStatusExcelToolbarProps
           const giftSentValue = row.사은품발송 ? String(row.사은품발송).trim() : "";
           const giftSent = giftSentValue === "발송" || giftSentValue === "Y" || giftSentValue === "O" || giftSentValue === "1";
 
+          // 상품명 관련 다양한 컬럼명 지원
+          const productInfoValue = 
+            row["상품명 및 수량"] || 
+            row["상품명및수량"] || 
+            row["상품명/수량"] ||
+            row["상품명"] || 
+            row["품명"] || 
+            row["상품정보"] ||
+            row["상품"] ||
+            row["품목"] ||
+            row["품목명"] ||
+            row["제품명"] ||
+            row["품명및수량"] ||
+            "";
+
+          // 수량 관련 컬럼이 별도로 있는 경우 처리
+          const qtyValue = row["수량"] || row["주문수량"] || row["qty"] || row["Qty"] || "";
+          let productInfoWithQty = String(productInfoValue).trim();
+          
+          // 상품명과 수량이 별도 컬럼인 경우 합치기
+          if (productInfoWithQty && qtyValue && !productInfoWithQty.includes("x")) {
+            productInfoWithQty = `${productInfoWithQty} x ${qtyValue}`;
+          }
+
           const orderData = {
             orderDate: orderDate.toISOString().split("T")[0],
             totalAmount,
             status: "PENDING",
             recipientName: customerName,
             recipientPhone: String(row.전화번호 || "").trim(),
-            recipientMobile: String(row.이동통신 || "").trim(),
+            recipientMobile: String(row.이동통신 || row.휴대폰 || row.핸드폰 || row.모바일 || "").trim(),
             recipientZipCode: String(row.우편번호 || "").trim(),
-            recipientAddr: String(row.주소 || "").trim(),
+            recipientAddr: String(row.주소 || row.배송주소 || row.배송지 || "").trim(),
             orderNumber: orderNumber,
-            productInfo: String(row["상품명 및 수량"] || "").trim(),
-            deliveryMsg: String(row.배송메시지 || row.배송메세지 || "").trim(),
-            orderSource: String(row.고객주문처명 || "자사몰").trim(),
+            productInfo: productInfoWithQty,
+            deliveryMsg: String(row.배송메시지 || row.배송메세지 || row.요청사항 || row.배송요청 || "").trim(),
+            orderSource: String(row.고객주문처명 || row.주문처 || row.판매처 || row.채널 || "자사몰").trim(),
             basePrice,
             shippingFee,
             giftSent, // 디폴트: false (미발송)

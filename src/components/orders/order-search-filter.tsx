@@ -19,6 +19,7 @@ interface OrderSearchFilterProps {
   setSearchName: (value: string) => void;
   searchPhone: string;
   setSearchPhone: (value: string) => void;
+  onSearchSubmit?: () => void; // 검색 실행 핸들러
   orderSource: string;
   setOrderSource: (value: string) => void;
   dateRange: string;
@@ -29,6 +30,9 @@ interface OrderSearchFilterProps {
   setEndDate: (value: string) => void;
   itemsPerPage: number;
   setItemsPerPage: (value: number) => void;
+  
+  // 날짜 범위 선택 시 콜백 (서버 사이드 검색용)
+  onDateRangeSelect?: (startDate: string, endDate: string) => void;
   
   // 필터 결과
   filteredCount: number;
@@ -55,6 +59,7 @@ export function OrderSearchFilter({
   setSearchName,
   searchPhone,
   setSearchPhone,
+  onSearchSubmit,
   orderSource,
   setOrderSource,
   dateRange,
@@ -65,6 +70,7 @@ export function OrderSearchFilter({
   setEndDate,
   itemsPerPage,
   setItemsPerPage,
+  onDateRangeSelect,
   filteredCount,
   totalCount,
   onReset,
@@ -79,25 +85,65 @@ export function OrderSearchFilter({
   const handleDateRangeChange = (value: string) => {
     setDateRange(value);
     const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
     
-    if (value === "1day") {
-      setStartDate(today.toISOString().split('T')[0]);
-      setEndDate(today.toISOString().split('T')[0]);
-    } else if (value === "1week") {
-      const weekAgo = new Date(today);
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      setStartDate(weekAgo.toISOString().split('T')[0]);
-      setEndDate(today.toISOString().split('T')[0]);
-    } else if (value === "1month") {
-      const monthAgo = new Date(today);
-      monthAgo.setMonth(monthAgo.getMonth() - 1);
-      setStartDate(monthAgo.toISOString().split('T')[0]);
-      setEndDate(today.toISOString().split('T')[0]);
-    } else if (value === "1year") {
-      const yearAgo = new Date(today);
-      yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-      setStartDate(yearAgo.toISOString().split('T')[0]);
-      setEndDate(today.toISOString().split('T')[0]);
+    let newStartDate = "";
+    let newEndDate = "";
+    
+    if (value === "today") {
+      // 오늘
+      newStartDate = todayStr;
+      newEndDate = todayStr;
+    } else if (value === "yesterday") {
+      // 어제
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      newStartDate = yesterdayStr;
+      newEndDate = yesterdayStr;
+    } else if (value === "7days") {
+      // 최근 7일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 6); // 오늘 포함 7일
+      newStartDate = daysAgo.toISOString().split('T')[0];
+      newEndDate = todayStr;
+    } else if (value === "30days") {
+      // 최근 30일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 29); // 오늘 포함 30일
+      newStartDate = daysAgo.toISOString().split('T')[0];
+      newEndDate = todayStr;
+    } else if (value === "90days") {
+      // 최근 90일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 89); // 오늘 포함 90일
+      newStartDate = daysAgo.toISOString().split('T')[0];
+      newEndDate = todayStr;
+    } else if (value === "180days") {
+      // 최근 180일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 179); // 오늘 포함 180일
+      newStartDate = daysAgo.toISOString().split('T')[0];
+      newEndDate = todayStr;
+    } else if (value === "365days") {
+      // 최근 365일
+      const daysAgo = new Date(today);
+      daysAgo.setDate(daysAgo.getDate() - 364); // 오늘 포함 365일
+      newStartDate = daysAgo.toISOString().split('T')[0];
+      newEndDate = todayStr;
+    } else if (value === "all") {
+      // 전체 기간
+      newStartDate = "";
+      newEndDate = "";
+    }
+    
+    // 날짜 상태 설정
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+    
+    // 서버 사이드 검색용 콜백 (두 날짜를 한 번에 전달)
+    if (onDateRangeSelect) {
+      onDateRangeSelect(newStartDate, newEndDate);
     }
     
     onPageChange?.();
@@ -148,7 +194,12 @@ export function OrderSearchFilter({
               <Input
                 placeholder="이름 검색"
                 value={searchName}
-                onChange={(e) => { setSearchName(e.target.value); onPageChange?.(); }}
+                onChange={(e) => setSearchName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    onSearchSubmit?.();
+                  }
+                }}
                 className="w-[150px] pl-8 bg-white"
               />
             </div>
@@ -160,7 +211,12 @@ export function OrderSearchFilter({
             <Input
               placeholder="전화번호 검색"
               value={searchPhone}
-              onChange={(e) => { setSearchPhone(e.target.value); onPageChange?.(); }}
+              onChange={(e) => setSearchPhone(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  onSearchSubmit?.();
+                }
+              }}
               className="w-[150px] bg-white"
             />
           </div>
@@ -174,10 +230,13 @@ export function OrderSearchFilter({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">전체 기간</SelectItem>
-                <SelectItem value="1day">1일</SelectItem>
-                <SelectItem value="1week">1주</SelectItem>
-                <SelectItem value="1month">1달</SelectItem>
-                <SelectItem value="1year">1년</SelectItem>
+                <SelectItem value="today">오늘</SelectItem>
+                <SelectItem value="yesterday">어제</SelectItem>
+                <SelectItem value="7days">최근 7일</SelectItem>
+                <SelectItem value="30days">최근 30일</SelectItem>
+                <SelectItem value="90days">최근 90일</SelectItem>
+                <SelectItem value="180days">최근 180일</SelectItem>
+                <SelectItem value="365days">최근 365일</SelectItem>
                 <SelectItem value="custom">직접 선택</SelectItem>
               </SelectContent>
             </Select>
@@ -204,10 +263,16 @@ export function OrderSearchFilter({
           {/* 초기화 버튼 */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-transparent">.</label>
-            <Button variant="outline" size="sm" onClick={onReset} className="bg-white">
-              <RotateCcw className="h-4 w-4 mr-1" />
-              초기화
-            </Button>
+            <div className="flex gap-1">
+              <Button variant="default" size="sm" onClick={onSearchSubmit} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Search className="h-4 w-4 mr-1" />
+                검색
+              </Button>
+              <Button variant="outline" size="sm" onClick={onReset} className="bg-white">
+                <RotateCcw className="h-4 w-4 mr-1" />
+                초기화
+              </Button>
+            </div>
           </div>
         </div>
 

@@ -30,9 +30,8 @@ const ALLOWED_ORDER_SOURCES = ["본사", "로켓그로스", "그로트", "스몰
 
 // 택배사 목록
 const courierList = [
-  { code: "NONE", name: "선택안함" },
-  { code: "CJ", name: "CJ대한통운" },
   { code: "HANJIN", name: "한진택배" },
+  { code: "CJ", name: "CJ대한통운" },
   { code: "LOTTE", name: "롯데택배" },
   { code: "LOGEN", name: "로젠택배" },
   { code: "POST", name: "우체국택배" },

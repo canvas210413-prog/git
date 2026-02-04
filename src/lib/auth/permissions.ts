@@ -716,6 +716,18 @@ export function canAccessPage(
   userPermissions: Array<{resource: string}> | string[],
   path: string
 ): boolean {
+  // 모든 사용자가 접근 가능한 경로 (권한 체크 없음)
+  const publicPaths = [
+    '/dashboard',
+    '/dashboard/unauthorized',
+    '/dashboard/messages',
+    '/dashboard/settings/change-password', // 비밀번호 변경
+  ];
+  
+  if (publicPaths.includes(path)) {
+    return true;
+  }
+  
   // 정확한 경로 매칭
   const requiredResources = PAGE_PERMISSION_MAP[path];
   if (requiredResources) {
