@@ -1,5 +1,25 @@
 [
   {
+    "id": "2026-02-07T03-14-28-022Z",
+    "filename": "backup_manual_2026-02-07T03-14-28-022Z.sql",
+    "date": "2026-02-07T03:14:28.745Z",
+    "type": "manual",
+    "size": "80.02 MB",
+    "sizeBytes": 83903013,
+    "status": "success",
+    "duration": "1초"
+  },
+  {
+    "id": "2026-02-05T05-00-51-246Z",
+    "filename": "backup_manual_2026-02-05T05-00-51-246Z.sql",
+    "date": "2026-02-05T05:00:51.946Z",
+    "type": "manual",
+    "size": "79.92 MB",
+    "sizeBytes": 83801200,
+    "status": "success",
+    "duration": "1초"
+  },
+  {
     "id": "2026-02-04T11-30-30-923Z",
     "filename": "backup_manual_2026-02-04T11-30-30-923Z.sql",
     "date": "2026-02-04T11:30:31.625Z",

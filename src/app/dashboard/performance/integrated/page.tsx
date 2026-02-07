@@ -33,10 +33,12 @@ import {
   Save,
   PiggyBank,
   Percent,
-  Loader2
+  Loader2,
+  ExternalLink
 } from "lucide-react";
 import { toast } from "sonner";
 import { updateKPISettings } from "@/app/actions/base-products";
+import { MarginSettingsDialog } from "@/components/performance/margin-settings-dialog";
 
 // ============================================================================
 // Types
@@ -100,6 +102,23 @@ interface TotalsStats {
   margin: number;
 }
 
+// 검색기간 주문 상세 내역 타입
+interface SearchPeriodOrderDetail {
+  id: string;
+  orderSource: string;
+  customerName: string;
+  productInfo: string;
+  quantity: number;
+  basePrice: number;
+  matchedKPI: string | null;
+  supplyPrice: number;
+  supplyPriceExVat: number;
+  cost: number;
+  shippingFee: number;
+  commission: number;
+  margin: number;
+}
+
 interface DashboardData {
   dateRange: {
     startDate: string;
@@ -109,6 +128,11 @@ interface DashboardData {
   selected: {
     byPartner: PartnerStats[];
     totals: TotalsStats;
+  };
+  searchPeriodMargin: {
+    byPartner: PartnerStats[];
+    totals: TotalsStats;
+    details: SearchPeriodOrderDetail[];
   };
   monthToDate: {
     byPartner: PartnerStats[];
@@ -184,8 +208,9 @@ function SelectedPeriodSection({
       shippingFee: acc.shippingFee + p.shippingFee,
       supplyPrice: acc.supplyPrice + p.supplyPrice,
       totalWithVat: acc.totalWithVat + p.totalWithVat,
+      cost: acc.cost + (p.cost || 0),
     }),
-    { count: 0, countForKPI: 0, quantity: 0, basePrice: 0, basePriceForKPI: 0, shippingFee: 0, supplyPrice: 0, totalWithVat: 0 }
+    { count: 0, countForKPI: 0, quantity: 0, basePrice: 0, basePriceForKPI: 0, shippingFee: 0, supplyPrice: 0, totalWithVat: 0, cost: 0 }
   );
 
   return (
@@ -211,13 +236,13 @@ function SelectedPeriodSection({
             {filteredData.map(p => (
               <div key={p.partner} className="flex justify-between items-center py-1 px-2 rounded hover:bg-white/50">
                 <span className="text-sm text-gray-600">{p.partner}</span>
-                <span className="font-semibold text-blue-700">{formatCurrency(p.basePriceForKPI || p.basePrice)}</span>
+                <span className="font-semibold text-blue-700">{formatCurrency(p.supplyPrice + p.shippingFee)}</span>
               </div>
             ))}
             <div className="border-t-2 border-blue-200 pt-3 mt-3 bg-white/60 p-3 rounded-lg">
               <div className="flex justify-between items-center">
                 <span className="font-bold text-gray-800">합계</span>
-                <span className="font-bold text-xl text-blue-600">{formatCurrency(totals.basePriceForKPI || totals.basePrice)}</span>
+                <span className="font-bold text-xl text-blue-600">{formatCurrency(totals.supplyPrice + totals.shippingFee)}</span>
               </div>
             </div>
           </CardContent>
@@ -249,27 +274,27 @@ function SelectedPeriodSection({
           </CardContent>
         </Card>
 
-        {/* 공급가 (상품별 설정값) */}
+        {/* 원가 */}
         <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-300 border shadow-lg hover:shadow-xl transition-all">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2 text-gray-700">
               <div className="p-2 bg-white rounded-lg shadow-sm">
                 <DollarSign className="h-5 w-5 text-emerald-600" />
               </div>
-              공급가 (설정값)
+              원가
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {filteredData.map(p => (
               <div key={p.partner} className="flex justify-between items-center py-1 px-2 rounded hover:bg-white/50">
                 <span className="text-sm text-gray-600">{p.partner}</span>
-                <span className="font-semibold text-emerald-700">{formatCurrency(p.supplyPrice)}</span>
+                <span className="font-semibold text-emerald-700">{formatCurrency(p.cost || 0)}</span>
               </div>
             ))}
             <div className="border-t-2 border-emerald-200 pt-3 mt-3 bg-white/60 p-3 rounded-lg">
               <div className="flex justify-between items-center">
                 <span className="font-bold text-gray-800">합계</span>
-                <span className="font-bold text-xl text-emerald-600">{formatCurrency(totals.supplyPrice)}</span>
+                <span className="font-bold text-xl text-emerald-600">{formatCurrency(totals.cost)}</span>
               </div>
             </div>
           </CardContent>
@@ -332,8 +357,9 @@ function MonthToDateSection({
       supplyPrice: acc.supplyPrice + p.supplyPrice,
       totalWithVat: acc.totalWithVat + p.totalWithVat,
       margin: acc.margin + p.margin,
+      cost: acc.cost + (p.cost || 0),
     }),
-    { count: 0, countForKPI: 0, quantity: 0, basePrice: 0, basePriceForKPI: 0, shippingFee: 0, supplyPrice: 0, totalWithVat: 0, margin: 0 }
+    { count: 0, countForKPI: 0, quantity: 0, basePrice: 0, basePriceForKPI: 0, shippingFee: 0, supplyPrice: 0, totalWithVat: 0, margin: 0, cost: 0 }
   );
 
   return (
@@ -359,13 +385,13 @@ function MonthToDateSection({
             {filteredData.map(p => (
               <div key={p.partner} className="flex justify-between items-center py-1 px-2 rounded hover:bg-white/50">
                 <span className="text-sm text-gray-600">{p.partner}</span>
-                <span className="font-semibold text-emerald-700">{formatCurrency(p.basePriceForKPI || p.basePrice)}</span>
+                <span className="font-semibold text-emerald-700">{formatCurrency(p.supplyPrice + p.shippingFee)}</span>
               </div>
             ))}
             <div className="border-t-2 border-emerald-200 pt-3 mt-3 bg-white/60 p-3 rounded-lg">
               <div className="flex justify-between items-center">
                 <span className="font-bold text-gray-800">합계</span>
-                <span className="font-bold text-xl text-emerald-600">{formatCurrency(totals.basePriceForKPI || totals.basePrice)}</span>
+                <span className="font-bold text-xl text-emerald-600">{formatCurrency(totals.supplyPrice + totals.shippingFee)}</span>
               </div>
             </div>
           </CardContent>
@@ -397,27 +423,27 @@ function MonthToDateSection({
           </CardContent>
         </Card>
 
-        {/* 공급가 (커스터마이징) */}
+        {/* 원가 */}
         <Card className="bg-gradient-to-br from-violet-50 to-purple-50 border-violet-300 border shadow-lg hover:shadow-xl transition-all">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2 text-gray-700">
               <div className="p-2 bg-white rounded-lg shadow-sm">
                 <DollarSign className="h-5 w-5 text-violet-600" />
               </div>
-              공급가 (설정값)
+              원가
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {filteredData.map(p => (
               <div key={p.partner} className="flex justify-between items-center py-1 px-2 rounded hover:bg-white/50">
                 <span className="text-sm text-gray-600">{p.partner}</span>
-                <span className="font-semibold text-violet-700">{formatCurrency(p.supplyPrice)}</span>
+                <span className="font-semibold text-violet-700">{formatCurrency(p.cost || 0)}</span>
               </div>
             ))}
             <div className="border-t-2 border-violet-200 pt-3 mt-3 bg-white/60 p-3 rounded-lg">
               <div className="flex justify-between items-center">
                 <span className="font-bold text-gray-800">합계</span>
-                <span className="font-bold text-xl text-violet-600">{formatCurrency(totals.supplyPrice)}</span>
+                <span className="font-bold text-xl text-violet-600">{formatCurrency(totals.cost)}</span>
               </div>
             </div>
           </CardContent>
@@ -455,18 +481,57 @@ function MonthToDateSection({
 
 // 마진 및 누적통계 섹션
 function MarginAndStatsSection({ 
+  searchPeriodData,
   monthData,
   yearData,
   lastMonth,
   settings,
   year,
+  dateRange,
 }: { 
+  searchPeriodData: { byPartner: PartnerStats[]; totals: TotalsStats; details: SearchPeriodOrderDetail[] };
   monthData: { byPartner: PartnerStats[]; totals: TotalsStats };
   yearData: { byPartner: PartnerStats[]; totals: TotalsStats; productSales: Record<string, number> };
   lastMonth: TotalsStats;
   settings: KPISettings;
   year: number;
+  dateRange: { startDate: string; endDate: string };
 }) {
+  // 검색기간 통계 필터링
+  const filteredSearchPeriodData = searchPeriodData.byPartner.filter(p => 
+    settings.partners[p.partner]?.enabled !== false
+  );
+
+  const searchPeriodTotals = filteredSearchPeriodData.reduce(
+    (acc, p) => ({
+      count: acc.count + p.count,
+      quantity: acc.quantity + p.quantity,
+      basePrice: acc.basePrice + p.basePrice,
+      shippingFee: acc.shippingFee + p.shippingFee,
+      supplyPrice: acc.supplyPrice + p.supplyPrice,
+      cost: acc.cost + p.cost,
+      margin: acc.margin + p.margin,
+      vat: acc.vat + p.vat,
+      totalWithVat: acc.totalWithVat + p.totalWithVat,
+      commission: acc.commission + (p.commission || 0),
+    }),
+    { count: 0, quantity: 0, basePrice: 0, shippingFee: 0, supplyPrice: 0, cost: 0, margin: 0, vat: 0, totalWithVat: 0, commission: 0 }
+  );
+
+  // 총매출액 = 공급가 + 배송비 (상단 "선택기간 매출현황"과 동일)
+  const searchPeriodTotalSales = searchPeriodTotals.supplyPrice + searchPeriodTotals.shippingFee;
+  // 부가세 = 공급가 * 0.1
+  const searchPeriodVatRecalc = Math.round(searchPeriodTotals.supplyPrice * 0.1);
+  // 배송비는 건수 × 2500원으로 재계산
+  const searchPeriodShippingFeeRecalc = searchPeriodTotals.count * 2500;
+  // 순마진 = 총매출액 - 부가세 - 원가 - 배송비(재계산) - 수수료
+  const searchPeriodMarginRecalc = searchPeriodTotalSales - searchPeriodVatRecalc - searchPeriodTotals.cost - searchPeriodShippingFeeRecalc - searchPeriodTotals.commission;
+  
+  // 검색 기간 표시 문자열
+  const displayDateRange = dateRange.startDate === dateRange.endDate 
+    ? dateRange.startDate 
+    : `${dateRange.startDate} ~ ${dateRange.endDate}`;
+
   const filteredMonthData = monthData.byPartner.filter(p => 
     settings.partners[p.partner]?.enabled !== false
   );
@@ -486,6 +551,15 @@ function MarginAndStatsSection({
     }),
     { count: 0, quantity: 0, basePrice: 0, shippingFee: 0, supplyPrice: 0, cost: 0, margin: 0, vat: 0, totalWithVat: 0, commission: 0 }
   );
+
+  // 총매출액 = 공급가 + 배송비 (상단 "선택기간 매출현황"과 동일)
+  const monthTotalSales = monthTotals.supplyPrice + monthTotals.shippingFee;
+  // 부가세 = 공급가 * 0.1
+  const monthVatRecalc = Math.round(monthTotals.supplyPrice * 0.1);
+  // 배송비는 건수 × 2500원으로 재계산
+  const monthShippingFeeRecalc = monthTotals.count * 2500;
+  // 순마진 = 총매출액 - 부가세 - 원가 - 배송비(재계산) - 수수료
+  const monthMarginRecalc = monthTotalSales - monthVatRecalc - monthTotals.cost - monthShippingFeeRecalc - monthTotals.commission;
 
   const filteredYearData = yearData.byPartner.filter(p => 
     settings.partners[p.partner]?.enabled !== false
@@ -514,7 +588,61 @@ function MarginAndStatsSection({
         <h2 className="text-2xl font-bold text-gray-800">마진 및 누적통계</h2>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* 검색기간 마진금액 */}
+        <Card className="bg-gradient-to-br from-blue-50 to-sky-50 border-blue-300 border shadow-lg hover:shadow-xl transition-all">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2 text-gray-700">
+              <div className="p-2 bg-white rounded-lg shadow-sm">
+                <DollarSign className="h-5 w-5 text-blue-600" />
+              </div>
+              <div className="flex flex-col">
+                <span>검색기간 마진</span>
+                <span className="text-xs font-normal text-gray-500">{displayDateRange}</span>
+              </div>
+              <Link 
+                href={`/dashboard/performance/integrated/margin-details?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`}
+                className="ml-auto"
+              >
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100">
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  상세
+                </Button>
+              </Link>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="bg-white/60 p-4 rounded-lg space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">총매출액 합계</span>
+                <span className="font-semibold">{formatCurrency(searchPeriodTotalSales)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">부가세</span>
+                <span className="font-semibold text-gray-600">-{formatCurrency(searchPeriodVatRecalc)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">원가</span>
+                <span className="font-semibold text-red-600">-{formatCurrency(searchPeriodTotals.cost)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">배송비 ({formatNumber(searchPeriodTotals.count)}건 × 2,500원)</span>
+                <span className="font-semibold text-red-600">-{formatCurrency(searchPeriodShippingFeeRecalc)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">수수료</span>
+                <span className="font-semibold text-red-600">-{formatCurrency(searchPeriodTotals.commission)}</span>
+              </div>
+              <div className="border-t-2 border-blue-200 pt-2 mt-2 flex justify-between items-center">
+                <span className="font-bold text-gray-800">순마진</span>
+                <span className="font-bold text-2xl text-blue-600">
+                  {formatCurrency(searchPeriodMarginRecalc)}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* 이번달 마진 */}
         <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-300 border shadow-lg hover:shadow-xl transition-all">
           <CardHeader className="pb-2">
@@ -528,25 +656,29 @@ function MarginAndStatsSection({
           <CardContent className="space-y-3">
             <div className="bg-white/60 p-4 rounded-lg space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">공급가(부가세제외)</span>
-                <span className="font-semibold">{formatCurrency(monthTotals.supplyPrice / 1.1)}</span>
+                <span className="text-gray-600">총매출액 합계</span>
+                <span className="font-semibold">{formatCurrency(monthTotalSales)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">원가 합계</span>
+                <span className="text-gray-600">부가세</span>
+                <span className="font-semibold text-gray-600">-{formatCurrency(monthVatRecalc)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">원가</span>
                 <span className="font-semibold text-red-600">-{formatCurrency(monthTotals.cost)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">배송비 합계</span>
-                <span className="font-semibold text-red-600">-{formatCurrency(monthTotals.shippingFee)}</span>
+                <span className="text-gray-600">배송비 ({formatNumber(monthTotals.count)}건 × 2,500원)</span>
+                <span className="font-semibold text-red-600">-{formatCurrency(monthShippingFeeRecalc)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">수수료 합계</span>
+                <span className="text-gray-600">수수료</span>
                 <span className="font-semibold text-red-600">-{formatCurrency(monthTotals.commission)}</span>
               </div>
               <div className="border-t-2 border-green-200 pt-2 mt-2 flex justify-between items-center">
                 <span className="font-bold text-gray-800">순마진</span>
                 <span className="font-bold text-2xl text-green-600">
-                  {formatCurrency(monthTotals.margin)}
+                  {formatCurrency(monthMarginRecalc)}
                 </span>
               </div>
             </div>
@@ -808,6 +940,9 @@ export default function IntegratedDashboardPage() {
             </Button>
           </Link>
           
+          {/* 마진 설정 버튼 */}
+          <MarginSettingsDialog onSave={() => fetchData(startDate, endDate)} />
+          
           {/* 날짜 검색 */}
           <div className="flex items-center gap-2 bg-white p-3 rounded-xl shadow-md">
             <div className="flex items-center gap-2">
@@ -863,11 +998,13 @@ export default function IntegratedDashboardPage() {
 
       {/* 마진 및 누적통계 */}
       <MarginAndStatsSection 
+        searchPeriodData={data.searchPeriodMargin}
         monthData={data.monthToDate}
         yearData={data.yearToDate}
         lastMonth={data.lastMonth}
         settings={kpiSettings}
         year={data.dateRange.year}
+        dateRange={data.dateRange}
       />
 
       {/* 계산 기준 정보 */}

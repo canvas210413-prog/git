@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { randomUUID } from "crypto";
 
 // PUT - 사용자 수정
 export async function PUT(
@@ -70,6 +71,7 @@ export async function PUT(
       if (roleIds.length > 0) {
         await prisma.userrole.createMany({
           data: roleIds.map((roleId: string) => ({
+            id: randomUUID().replace(/-/g, '').substring(0, 25),
             userId,
             roleId,
           })),

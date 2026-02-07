@@ -49,7 +49,7 @@ interface EditOrderDialogProps {
   onOpenChange: (open: boolean) => void;
   order: Order | null;
   mode: "view" | "edit" | "create";
-  onSuccess?: () => void;
+  onSuccess?: (updatedOrder?: any) => void;
 }
 
 // 허용된 고객주문처명 목록
@@ -336,7 +336,13 @@ export function EditOrderDialog({
           alert(mode === "create" ? "✅ 주문이 등록되었습니다." : "✅ 주문이 수정되었습니다.");
           onOpenChange(false);
           if (onSuccess) {
-            onSuccess();
+            // 수정된 주문 데이터를 콜백으로 전달 (새로고침 없이 목록 업데이트)
+            const updatedOrder = {
+              ...order,
+              ...orderData,
+              id: mode === "create" ? result.data?.id : order!.id,
+            };
+            onSuccess(updatedOrder);
           } else {
             window.location.reload();
           }

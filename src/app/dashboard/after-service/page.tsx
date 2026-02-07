@@ -66,12 +66,43 @@ import {
   X,
   Save,
   BarChart3,
-  Activity
+  Activity,
+  Settings2,
+  EyeOff,
+  GripVertical
 } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import Link from "next/link";
 import * as XLSX from "xlsx";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+// AS 컬럼 정의
+const AS_COLUMNS = [
+  { id: "receivedAt", label: "날짜", width: 80, minWidth: 60, default: true },
+  { id: "companyName", label: "업체명", width: 80, minWidth: 60, default: true },
+  { id: "customerName", label: "고객명", width: 80, minWidth: 60, default: true },
+  { id: "customerPhone", label: "연락처", width: 110, minWidth: 80, default: true },
+  { id: "customerAddress", label: "주소", width: 200, minWidth: 100, default: true },
+  { id: "pickupRequestDate", label: "수거요청", width: 80, minWidth: 60, default: true },
+  { id: "status", label: "상태", width: 70, minWidth: 50, default: true },
+  { id: "shipDate", label: "발송", width: 80, minWidth: 60, default: true },
+  { id: "pickupCompleteDate", label: "수거완료", width: 80, minWidth: 60, default: true },
+  { id: "purchaseDate", label: "구매일자", width: 80, minWidth: 60, default: true },
+  { id: "productName", label: "제품", width: 100, minWidth: 70, default: true },
+  { id: "description", label: "내용", width: 120, minWidth: 80, default: true },
+  { id: "repairContent", label: "수리내역", width: 120, minWidth: 80, default: true },
+  { id: "trackingNumber", label: "운송장", width: 100, minWidth: 70, default: true },
+] as const;
+
+type ASColumnId = typeof AS_COLUMNS[number]["id"];
 
 // 상태 라벨 (5단계)
 const statusLabels: Record<string, string> = {
@@ -215,6 +246,94 @@ export default function AfterServicePage() {
   const [editData, setEditData] = useState<Partial<AfterService>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // 컬럼 설정 상태
+  const [visibleColumns, setVisibleColumns] = useState<Set<ASColumnId>>(() => {
+    const defaultCols = AS_COLUMNS.filter(c => c.default).map(c => c.id);
+    return new Set(defaultCols as ASColumnId[]);
+  });
+  
+  // 컬럼 너비 상태 (드래그 리사이징용)
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
+    const widths: Record<string, number> = {};
+    AS_COLUMNS.forEach(col => {
+      widths[col.id] = col.width;
+    });
+    return widths;
+  });
+  
+  // 드래그 리사이징 상태
+  const [resizingColumn, setResizingColumn] = useState<string | null>(null);
+  const [startX, setStartX] = useState(0);
+  const [startWidth, setStartWidth] = useState(0);
+  
+  // 컬럼 토글
+  const toggleColumn = (columnId: ASColumnId) => {
+    setVisibleColumns(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(columnId)) {
+        newSet.delete(columnId);
+      } else {
+        newSet.add(columnId);
+      }
+      return newSet;
+    });
+  };
+  
+  // 전체 컬럼 표시
+  const showAllColumns = () => {
+    setVisibleColumns(new Set(AS_COLUMNS.map(c => c.id) as ASColumnId[]));
+  };
+  
+  // 기본값으로 리셋
+  const resetColumns = () => {
+    const defaultCols = AS_COLUMNS.filter(c => c.default).map(c => c.id);
+    setVisibleColumns(new Set(defaultCols as ASColumnId[]));
+    // 너비도 초기화
+    const widths: Record<string, number> = {};
+    AS_COLUMNS.forEach(col => {
+      widths[col.id] = col.width;
+    });
+    setColumnWidths(widths);
+  };
+  
+  // 드래그 리사이징 핸들러
+  const handleMouseDown = (e: React.MouseEvent, columnId: string) => {
+    e.preventDefault();
+    setResizingColumn(columnId);
+    setStartX(e.clientX);
+    setStartWidth(columnWidths[columnId] || 100);
+  };
+  
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!resizingColumn) return;
+      
+      const diff = e.clientX - startX;
+      const col = AS_COLUMNS.find(c => c.id === resizingColumn);
+      const minWidth = col?.minWidth || 50;
+      const newWidth = Math.max(minWidth, startWidth + diff);
+      
+      setColumnWidths(prev => ({
+        ...prev,
+        [resizingColumn]: newWidth
+      }));
+    };
+    
+    const handleMouseUp = () => {
+      setResizingColumn(null);
+    };
+    
+    if (resizingColumn) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [resizingColumn, startX, startWidth]);
 
   // 데이터 조회
   const fetchASData = async () => {
@@ -988,11 +1107,42 @@ export default function AfterServicePage() {
                 </div>
               )}
             </div>
+            {/* 컬럼 설정 버튼 */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Settings2 className="h-4 w-4" />
+                  컬럼 설정
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>표시할 컬럼 선택</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {AS_COLUMNS.map((column) => (
+                  <DropdownMenuCheckboxItem
+                    key={column.id}
+                    checked={visibleColumns.has(column.id)}
+                    onCheckedChange={() => toggleColumn(column.id)}
+                  >
+                    {column.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                <DropdownMenuSeparator />
+                <div className="flex gap-1 px-2 py-1">
+                  <Button variant="outline" size="sm" onClick={showAllColumns} className="flex-1 text-xs">
+                    전체 표시
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={resetColumns} className="flex-1 text-xs">
+                    기본값
+                  </Button>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
+          <div className="rounded-md border overflow-x-auto">
+            <Table style={{ tableLayout: 'fixed', minWidth: '1200px' }}>
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   <TableHead className="w-[50px]">
@@ -1001,20 +1151,174 @@ export default function AfterServicePage() {
                       onCheckedChange={toggleSelectAll}
                     />
                   </TableHead>
-                  <TableHead className="w-[80px]">날짜</TableHead>
-                  <TableHead className="w-[80px]">업체명</TableHead>
-                  <TableHead className="w-[80px]">고객명</TableHead>
-                  <TableHead className="w-[110px]">연락처</TableHead>
-                  <TableHead className="min-w-[200px]">주소</TableHead>
-                  <TableHead className="w-[80px]">수거요청</TableHead>
-                  <TableHead className="w-[70px]">상태</TableHead>
-                  <TableHead className="w-[80px]">발송</TableHead>
-                  <TableHead className="w-[80px]">수거완료</TableHead>
-                  <TableHead className="w-[80px]">구매일자</TableHead>
-                  <TableHead className="w-[100px]">제품</TableHead>
-                  <TableHead className="w-[120px]">내용</TableHead>
-                  <TableHead className="w-[120px]">수리내역</TableHead>
-                  <TableHead className="w-[100px]">운송장</TableHead>
+                  {visibleColumns.has("receivedAt") && (
+                    <TableHead 
+                      style={{ width: columnWidths.receivedAt, position: 'relative' }}
+                      className="select-none"
+                    >
+                      날짜
+                      <div 
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
+                        onMouseDown={(e) => handleMouseDown(e, "receivedAt")}
+                      />
+                    </TableHead>
+                  )}
+                  {visibleColumns.has("companyName") && (
+                    <TableHead 
+                      style={{ width: columnWidths.companyName, position: 'relative' }}
+                      className="select-none"
+                    >
+                      업체명
+                      <div 
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
+                        onMouseDown={(e) => handleMouseDown(e, "companyName")}
+                      />
+                    </TableHead>
+                  )}
+                  {visibleColumns.has("customerName") && (
+                    <TableHead 
+                      style={{ width: columnWidths.customerName, position: 'relative' }}
+                      className="select-none"
+                    >
+                      고객명
+                      <div 
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
+                        onMouseDown={(e) => handleMouseDown(e, "customerName")}
+                      />
+                    </TableHead>
+                  )}
+                  {visibleColumns.has("customerPhone") && (
+                    <TableHead 
+                      style={{ width: columnWidths.customerPhone, position: 'relative' }}
+                      className="select-none"
+                    >
+                      연락처
+                      <div 
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
+                        onMouseDown={(e) => handleMouseDown(e, "customerPhone")}
+                      />
+                    </TableHead>
+                  )}
+                  {visibleColumns.has("customerAddress") && (
+                    <TableHead 
+                      style={{ width: columnWidths.customerAddress, position: 'relative' }}
+                      className="select-none"
+                    >
+                      주소
+                      <div 
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
+                        onMouseDown={(e) => handleMouseDown(e, "customerAddress")}
+                      />
+                    </TableHead>
+                  )}
+                  {visibleColumns.has("pickupRequestDate") && (
+                    <TableHead 
+                      style={{ width: columnWidths.pickupRequestDate, position: 'relative' }}
+                      className="select-none"
+                    >
+                      수거요청
+                      <div 
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
+                        onMouseDown={(e) => handleMouseDown(e, "pickupRequestDate")}
+                      />
+                    </TableHead>
+                  )}
+                  {visibleColumns.has("status") && (
+                    <TableHead 
+                      style={{ width: columnWidths.status, position: 'relative' }}
+                      className="select-none"
+                    >
+                      상태
+                      <div 
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
+                        onMouseDown={(e) => handleMouseDown(e, "status")}
+                      />
+                    </TableHead>
+                  )}
+                  {visibleColumns.has("shipDate") && (
+                    <TableHead 
+                      style={{ width: columnWidths.shipDate, position: 'relative' }}
+                      className="select-none"
+                    >
+                      발송
+                      <div 
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
+                        onMouseDown={(e) => handleMouseDown(e, "shipDate")}
+                      />
+                    </TableHead>
+                  )}
+                  {visibleColumns.has("pickupCompleteDate") && (
+                    <TableHead 
+                      style={{ width: columnWidths.pickupCompleteDate, position: 'relative' }}
+                      className="select-none"
+                    >
+                      수거완료
+                      <div 
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
+                        onMouseDown={(e) => handleMouseDown(e, "pickupCompleteDate")}
+                      />
+                    </TableHead>
+                  )}
+                  {visibleColumns.has("purchaseDate") && (
+                    <TableHead 
+                      style={{ width: columnWidths.purchaseDate, position: 'relative' }}
+                      className="select-none"
+                    >
+                      구매일자
+                      <div 
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
+                        onMouseDown={(e) => handleMouseDown(e, "purchaseDate")}
+                      />
+                    </TableHead>
+                  )}
+                  {visibleColumns.has("productName") && (
+                    <TableHead 
+                      style={{ width: columnWidths.productName, position: 'relative' }}
+                      className="select-none"
+                    >
+                      제품
+                      <div 
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
+                        onMouseDown={(e) => handleMouseDown(e, "productName")}
+                      />
+                    </TableHead>
+                  )}
+                  {visibleColumns.has("description") && (
+                    <TableHead 
+                      style={{ width: columnWidths.description, position: 'relative' }}
+                      className="select-none"
+                    >
+                      내용
+                      <div 
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
+                        onMouseDown={(e) => handleMouseDown(e, "description")}
+                      />
+                    </TableHead>
+                  )}
+                  {visibleColumns.has("repairContent") && (
+                    <TableHead 
+                      style={{ width: columnWidths.repairContent, position: 'relative' }}
+                      className="select-none"
+                    >
+                      수리내역
+                      <div 
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
+                        onMouseDown={(e) => handleMouseDown(e, "repairContent")}
+                      />
+                    </TableHead>
+                  )}
+                  {visibleColumns.has("trackingNumber") && (
+                    <TableHead 
+                      style={{ width: columnWidths.trackingNumber, position: 'relative' }}
+                      className="select-none"
+                    >
+                      운송장
+                      <div 
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
+                        onMouseDown={(e) => handleMouseDown(e, "trackingNumber")}
+                      />
+                    </TableHead>
+                  )}
                   <TableHead className="w-[80px]">관리</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1022,6 +1326,8 @@ export default function AfterServicePage() {
                 {/* 신규 등록 행 */}
                 {isAddingNew && (
                   <TableRow className="bg-blue-50 hover:bg-blue-100">
+                    <TableCell></TableCell>
+                    {visibleColumns.has("receivedAt") && (
                     <TableCell>
                       <Input
                         type="date"
@@ -1030,6 +1336,8 @@ export default function AfterServicePage() {
                         className="h-8 w-full text-xs"
                       />
                     </TableCell>
+                    )}
+                    {visibleColumns.has("companyName") && (
                     <TableCell>
                       <Select 
                         value={newAS.companyName} 
@@ -1048,6 +1356,8 @@ export default function AfterServicePage() {
                         </SelectContent>
                       </Select>
                     </TableCell>
+                    )}
+                    {visibleColumns.has("customerName") && (
                     <TableCell>
                       <Input
                         placeholder="고객명*"
@@ -1056,6 +1366,8 @@ export default function AfterServicePage() {
                         className="h-8 w-full text-xs"
                       />
                     </TableCell>
+                    )}
+                    {visibleColumns.has("customerPhone") && (
                     <TableCell>
                       <Input
                         placeholder="연락처"
@@ -1064,6 +1376,8 @@ export default function AfterServicePage() {
                         className="h-8 w-full text-xs"
                       />
                     </TableCell>
+                    )}
+                    {visibleColumns.has("customerAddress") && (
                     <TableCell>
                       <Input
                         placeholder="주소"
@@ -1072,6 +1386,8 @@ export default function AfterServicePage() {
                         className="h-8 w-full text-xs"
                       />
                     </TableCell>
+                    )}
+                    {visibleColumns.has("pickupRequestDate") && (
                     <TableCell>
                       <Input
                         type="date"
@@ -1080,6 +1396,8 @@ export default function AfterServicePage() {
                         className="h-8 w-full text-xs"
                       />
                     </TableCell>
+                    )}
+                    {visibleColumns.has("status") && (
                     <TableCell>
                       <Select value={newAS.status} onValueChange={(v) => setNewAS({ ...newAS, status: v })}>
                         <SelectTrigger className="h-8 text-xs">
@@ -1094,6 +1412,8 @@ export default function AfterServicePage() {
                         </SelectContent>
                       </Select>
                     </TableCell>
+                    )}
+                    {visibleColumns.has("shipDate") && (
                     <TableCell>
                       <Input
                         type="date"
@@ -1102,6 +1422,8 @@ export default function AfterServicePage() {
                         className="h-8 w-full text-xs"
                       />
                     </TableCell>
+                    )}
+                    {visibleColumns.has("pickupCompleteDate") && (
                     <TableCell>
                       <Input
                         type="date"
@@ -1110,6 +1432,8 @@ export default function AfterServicePage() {
                         className="h-8 w-full text-xs"
                       />
                     </TableCell>
+                    )}
+                    {visibleColumns.has("purchaseDate") && (
                     <TableCell>
                       <Input
                         type="date"
@@ -1118,6 +1442,8 @@ export default function AfterServicePage() {
                         className="h-8 w-full text-xs"
                       />
                     </TableCell>
+                    )}
+                    {visibleColumns.has("productName") && (
                     <TableCell>
                       <Input
                         placeholder="제품명"
@@ -1126,6 +1452,8 @@ export default function AfterServicePage() {
                         className="h-8 w-full text-xs"
                       />
                     </TableCell>
+                    )}
+                    {visibleColumns.has("description") && (
                     <TableCell>
                       <Input
                         placeholder="내용"
@@ -1134,6 +1462,8 @@ export default function AfterServicePage() {
                         className="h-8 w-full text-xs"
                       />
                     </TableCell>
+                    )}
+                    {visibleColumns.has("repairContent") && (
                     <TableCell>
                       <Input
                         placeholder="수리내역"
@@ -1142,6 +1472,8 @@ export default function AfterServicePage() {
                         className="h-8 w-full text-xs"
                       />
                     </TableCell>
+                    )}
+                    {visibleColumns.has("trackingNumber") && (
                     <TableCell>
                       <Input
                         placeholder="운송장"
@@ -1150,6 +1482,7 @@ export default function AfterServicePage() {
                         className="h-8 w-full text-xs"
                       />
                     </TableCell>
+                    )}
                     <TableCell>
                       <Button
                         size="sm"
@@ -1190,6 +1523,7 @@ export default function AfterServicePage() {
                         </TableCell>
                         
                         {/* 날짜 */}
+                        {visibleColumns.has("receivedAt") && (
                         <TableCell className="text-xs">
                           {isEditing ? (
                             <Input
@@ -1202,8 +1536,10 @@ export default function AfterServicePage() {
                             formatDate(item.receivedAt)
                           )}
                         </TableCell>
+                        )}
                         
                         {/* 업체명 */}
+                        {visibleColumns.has("companyName") && (
                         <TableCell className="text-xs">
                           {isEditing ? (
                             <Select 
@@ -1226,8 +1562,10 @@ export default function AfterServicePage() {
                             item.companyName || "-"
                           )}
                         </TableCell>
+                        )}
                         
                         {/* 고객명 */}
+                        {visibleColumns.has("customerName") && (
                         <TableCell className="text-xs font-medium">
                           {isEditing ? (
                             <Input
@@ -1247,8 +1585,10 @@ export default function AfterServicePage() {
                             </button>
                           )}
                         </TableCell>
+                        )}
                         
                         {/* 연락처 */}
+                        {visibleColumns.has("customerPhone") && (
                         <TableCell className="text-xs">
                           {isEditing ? (
                             <Input
@@ -1260,8 +1600,10 @@ export default function AfterServicePage() {
                             item.customerPhone || "-"
                           )}
                         </TableCell>
+                        )}
                         
                         {/* 주소 */}
+                        {visibleColumns.has("customerAddress") && (
                         <TableCell className="text-xs max-w-[250px] truncate" title={item.customerAddress}>
                           {isEditing ? (
                             <Input
@@ -1273,8 +1615,10 @@ export default function AfterServicePage() {
                             item.customerAddress || "-"
                           )}
                         </TableCell>
+                        )}
                         
                         {/* 수거요청일 */}
+                        {visibleColumns.has("pickupRequestDate") && (
                         <TableCell className="text-xs">
                           {isEditing ? (
                             <Input
@@ -1287,8 +1631,10 @@ export default function AfterServicePage() {
                             formatDate(item.pickupRequestDate)
                           )}
                         </TableCell>
+                        )}
                         
                         {/* 상태 */}
+                        {visibleColumns.has("status") && (
                         <TableCell>
                           {isEditing ? (
                             <Select value={data.status} onValueChange={(v) => setEditData({ ...editData, status: v })}>
@@ -1309,8 +1655,10 @@ export default function AfterServicePage() {
                             </Badge>
                           )}
                         </TableCell>
+                        )}
                         
                         {/* 발송일 */}
+                        {visibleColumns.has("shipDate") && (
                         <TableCell className="text-xs">
                           {isEditing ? (
                             <Input
@@ -1323,8 +1671,10 @@ export default function AfterServicePage() {
                             formatDate(item.shipDate)
                           )}
                         </TableCell>
+                        )}
                         
                         {/* 수거완료일 */}
+                        {visibleColumns.has("pickupCompleteDate") && (
                         <TableCell className="text-xs">
                           {isEditing ? (
                             <Input
@@ -1337,8 +1687,10 @@ export default function AfterServicePage() {
                             formatDate(item.pickupCompleteDate)
                           )}
                         </TableCell>
+                        )}
                         
                         {/* 구매일자 */}
+                        {visibleColumns.has("purchaseDate") && (
                         <TableCell className="text-xs">
                           {isEditing ? (
                             <Input
@@ -1351,8 +1703,10 @@ export default function AfterServicePage() {
                             formatDate(item.purchaseDate)
                           )}
                         </TableCell>
+                        )}
                         
                         {/* 제품 */}
+                        {visibleColumns.has("productName") && (
                         <TableCell className="text-xs">
                           {isEditing ? (
                             <Input
@@ -1364,8 +1718,10 @@ export default function AfterServicePage() {
                             item.productName || "-"
                           )}
                         </TableCell>
+                        )}
                         
                         {/* 내용 */}
+                        {visibleColumns.has("description") && (
                         <TableCell className="text-xs">
                           {isEditing ? (
                             <Input
@@ -1382,8 +1738,10 @@ export default function AfterServicePage() {
                             </div>
                           )}
                         </TableCell>
+                        )}
                         
                         {/* 수리내역 */}
+                        {visibleColumns.has("repairContent") && (
                         <TableCell className="text-xs">
                           {isEditing ? (
                             <Input
@@ -1400,8 +1758,10 @@ export default function AfterServicePage() {
                             </div>
                           )}
                         </TableCell>
+                        )}
                         
                         {/* 운송장 */}
+                        {visibleColumns.has("trackingNumber") && (
                         <TableCell className="text-xs">
                           {isEditing ? (
                             <Input
@@ -1413,6 +1773,7 @@ export default function AfterServicePage() {
                             item.trackingNumber || "-"
                           )}
                         </TableCell>
+                        )}
                         
                         {/* 관리 */}
                         <TableCell>

@@ -1705,6 +1705,16 @@ export function OrdersTable({
         onOpenChange={setEditDialogOpen}
         order={selectedOrderForEdit}
         mode={editDialogMode}
+        onSuccess={(updatedOrder) => {
+          if (updatedOrder) {
+            // 새로고침 없이 로컬 상태만 업데이트
+            setOrders(prevOrders => 
+              prevOrders.map(order => 
+                order.id === updatedOrder.id ? { ...order, ...updatedOrder } : order
+              )
+            );
+          }
+        }}
       />
 
       {/* 오류 메시지 다이얼로그 */}

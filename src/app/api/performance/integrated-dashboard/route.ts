@@ -1,17 +1,59 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { promises as fs } from "fs";
+import path from "path";
 
 // 기본 부가세율
 const DEFAULT_VAT_RATE = 0.1;
 // 기본 수수료
 const DEFAULT_COMMISSION_RATE = 0;
 
+// 마진 설정 타입
+interface MarginDeduction {
+  id: string;
+  type: "cost" | "shippingFee" | "commission" | "custom";
+  enabled: boolean;
+  label: string;
+  description: string;
+  valueType: "kpi" | "fixed" | "rate";
+  fixedValue: number;
+  rate?: number;
+  excludePartners?: string[];
+  operator?: "add" | "subtract";  // +(수익) 또는 -(비용) 연산자
+}
+
+interface MarginFormulaConfig {
+  version: number;
+  name: string;
+  description: string;
+  formula: {
+    base: "supplyPrice" | "basePrice";
+    vatExclude: boolean;
+    vatRate: number;
+    deductions: MarginDeduction[];
+  };
+  updatedAt: string;
+  updatedBy: string;
+}
+
+// 마진 설정 로드 함수
+async function loadMarginConfig(): Promise<MarginFormulaConfig | null> {
+  try {
+    const configPath = path.join(process.cwd(), "config", "margin-formula.json");
+    const configData = await fs.readFile(configPath, "utf-8");
+    return JSON.parse(configData);
+  } catch (error) {
+    console.log("마진 설정 파일 로드 실패, 기본값 사용:", error);
+    return null;
+  }
+}
+
 // 협력사 목록 (고정)
 const PARTNERS = ["본사", "로켓그로스", "그로트", "스몰닷", "해피포즈"];
 
 // 상품 KPI 설정 타입
 interface ProductKPISetting {
-  id: number;
+  id: string;
   name: string;
   partnerCode: string;
   unitPrice: number;
@@ -25,6 +67,40 @@ interface ProductKPISetting {
 
 export async function GET(request: Request) {
   try {
+    // 마진 설정 로드
+    const marginConfig = await loadMarginConfig();
+    
+    // 마진 설정에서 배송비, 수수료 기본값 추출
+    const shippingFeeConfig = marginConfig?.formula.deductions.find(d => d.type === "shippingFee");
+    const commissionConfig = marginConfig?.formula.deductions.find(d => d.type === "commission");
+    
+    const DEFAULT_SHIPPING_FEE = shippingFeeConfig?.enabled ? (shippingFeeConfig.fixedValue || 3000) : 0;
+    const SHIPPING_FEE_EXCLUDE_PARTNERS = shippingFeeConfig?.excludePartners || ["로켓그로스"];
+    const DEFAULT_COMMISSION_RATE_VALUE = commissionConfig?.enabled && commissionConfig.rate ? commissionConfig.rate : 0.02585;
+    
+    // 커스텀 항목들 추출 (기타비용1, 기타비용2 등)
+    const customDeductions = marginConfig?.formula.deductions.filter(d => d.type === "custom" && d.enabled) || [];
+    
+    // 커스텀 항목 계산 함수 (주문별)
+    const calculateCustomDeductions = (supplyPrice: number, qty: number, source: string) => {
+      let totalCustom = 0;
+      customDeductions.forEach(d => {
+        let value = 0;
+        if (d.valueType === "fixed") {
+          value = (d.fixedValue || 0) * qty;  // 고정값 × 수량
+        } else if (d.valueType === "rate" && d.rate) {
+          value = supplyPrice * d.rate;  // 공급가 × 비율
+        }
+        // 연산자에 따라 +/- 결정 (기본은 subtract)
+        if (d.operator === "add") {
+          totalCustom -= value;  // 마진에 더하기 = 총비용에서 빼기
+        } else {
+          totalCustom += value;  // 마진에서 빼기 = 총비용에 더하기
+        }
+      });
+      return totalCustom;
+    };
+    
     // URL 파라미터에서 날짜 범위 가져오기
     const { searchParams } = new URL(request.url);
     const startDateParam = searchParams.get('startDate');
@@ -79,13 +155,17 @@ export async function GET(request: Request) {
       },
     });
 
-    // 상품명 -> KPI 설정 매핑 생성
+    // 협력사+상품명 -> KPI 설정 매핑 생성 (키: "협력사|상품명")
     const productKPIMap = new Map<string, ProductKPISetting>();
+    // 상품명만으로도 검색할 수 있도록 배열로 저장
+    const allProductKPIs: ProductKPISetting[] = [];
+    
     baseProducts.forEach(product => {
-      productKPIMap.set(product.name, {
+      const partnerCode = product.partnerCode || "본사";
+      const kpiSetting: ProductKPISetting = {
         id: product.id,
         name: product.name,
-        partnerCode: product.partnerCode || "본사",
+        partnerCode: partnerCode,
         unitPrice: Number(product.unitPrice),
         kpiSupplyPrice: product.kpiSupplyPrice ? Number(product.kpiSupplyPrice) : null,
         kpiCostPrice: product.kpiCostPrice ? Number(product.kpiCostPrice) : null,
@@ -93,7 +173,11 @@ export async function GET(request: Request) {
         kpiUnitCount: product.kpiUnitCount ?? 1,
         kpiCountEnabled: product.kpiCountEnabled,
         kpiSalesEnabled: product.kpiSalesEnabled,
-      });
+      };
+      // 협력사+상품명 조합으로 키 생성
+      const key = `${partnerCode}|${product.name}`;
+      productKPIMap.set(key, kpiSetting);
+      allProductKPIs.push(kpiSetting);
     });
     
     // =====================================================
@@ -143,20 +227,33 @@ export async function GET(request: Request) {
       };
     });
 
-    // 주문 상품정보에서 KPI 설정된 상품 매칭 함수 (협력사 고려)
+    // 협력사별로 상품명 길이순 정렬 (긴 것부터 매칭 - 더 구체적인 상품명 우선)
+    const sortedProductKPIs = allProductKPIs.sort((a, b) => b.name.length - a.name.length);
+    
+    // 주문 상품정보에서 KPI 설정된 상품 매칭 함수 (협력사 정확히 일치해야만 매칭)
     const matchProductKPI = (productInfo: string, partnerCode: string): ProductKPISetting | null => {
-      // 1단계: 협력사 + 상품명 정확히 매칭
-      for (const [productName, kpi] of productKPIMap.entries()) {
-        if (productInfo.includes(productName) && kpi.partnerCode === partnerCode) {
+      // 정규화: 공백 제거 및 소문자 변환
+      const normalizedProductInfo = productInfo.replace(/\s+/g, '').toLowerCase();
+      
+      // 해당 협력사의 상품 중에서만 매칭 (긴 상품명부터)
+      for (const kpi of sortedProductKPIs) {
+        if (kpi.partnerCode !== partnerCode) continue;
+        
+        const normalizedKpiName = kpi.name.replace(/\s+/g, '').toLowerCase();
+        
+        // 1. 정확히 일치하는 경우
+        if (normalizedProductInfo === normalizedKpiName) {
+          return kpi;
+        }
+        
+        // 2. KPI 상품명이 충분히 길고 (10자 이상), 주문 정보에 포함되는 경우
+        // 너무 짧은 이름(예: "쉴드4")은 부분 매칭하지 않음
+        if (kpi.name.length >= 10 && normalizedProductInfo.includes(normalizedKpiName)) {
           return kpi;
         }
       }
-      // 2단계: 상품명만 매칭 (협력사 불일치 시)
-      for (const [productName, kpi] of productKPIMap.entries()) {
-        if (productInfo.includes(productName)) {
-          return kpi;
-        }
-      }
+      
+      // 협력사가 정확히 일치하지 않으면 매칭하지 않음
       return null;
     };
 
@@ -170,14 +267,15 @@ export async function GET(request: Request) {
       selectedStats[source].count += 1;
       selectedStats[source].quantity += qty;
       selectedStats[source].basePrice += Number(order.basePrice) || 0;
-      selectedStats[source].shippingFee += Number(order.shippingFee) || 0;
+      selectedStats[source].shippingFee += SHIPPING_FEE_EXCLUDE_PARTNERS.includes(source) ? 0 : DEFAULT_SHIPPING_FEE; // 마진 설정에서 배송비 가져옴
       
       // KPI 설정에 따른 통계
       if (matchedKPI) {
-        // 건수 카운트 (kpiUnitCount × 주문수량 적용)
+        // 건수 카운트 (kpiUnitCount × 주문수량 적용, kpiCountEnabled가 false면 제외)
         if (matchedKPI.kpiCountEnabled) {
           selectedStats[source].countForKPI += matchedKPI.kpiUnitCount * qty;
         }
+        // kpiCountEnabled가 false면 건수에서 완전히 제외
         // 매출 집계 여부
         if (matchedKPI.kpiSalesEnabled) {
           selectedStats[source].basePriceForKPI += Number(order.basePrice) || 0;
@@ -201,6 +299,160 @@ export async function GET(request: Request) {
         // 기본 수수료율 적용
         selectedStats[source].commissionTotal += basePrice * 0.02585;
       }
+    });
+
+    // =====================================================
+    // 1.5. 검색기간 상세 통계 (마진 크로스체킹용)
+    // =====================================================
+    const searchPeriodOrders = await prisma.order.findMany({
+      where: {
+        orderDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      select: {
+        id: true,
+        orderSource: true,
+        quantity: true,
+        basePrice: true,
+        shippingFee: true,
+        productInfo: true,
+        customerName: true,
+      },
+    });
+
+    const searchPeriodStats: Record<string, PartnerStats> = {};
+    PARTNERS.forEach(p => {
+      searchPeriodStats[p] = { 
+        count: 0, 
+        countForKPI: 0,
+        quantity: 0, 
+        basePrice: 0, 
+        basePriceForKPI: 0,
+        shippingFee: 0,
+        supplyPriceTotal: 0,
+        costTotal: 0,
+        commissionTotal: 0,
+      };
+    });
+
+    // 검색기간 상세 내역 (크로스체킹용)
+    interface SearchPeriodOrderDetail {
+      id: string;
+      orderSource: string;
+      customerName: string;
+      productInfo: string;
+      quantity: number;
+      basePrice: number;
+      matchedKPI: string | null;
+      supplyPrice: number;
+      supplyPriceExVat: number;
+      cost: number;
+      shippingFee: number;
+      commission: number;
+      customDeductions: { id: string; label: string; value: number; operator: string }[];  // 커스텀 항목 상세
+      margin: number;
+    }
+    const searchPeriodOrderDetails: SearchPeriodOrderDetail[] = [];
+
+    searchPeriodOrders.forEach(order => {
+      const source = PARTNERS.includes(order.orderSource || "") ? order.orderSource! : "본사";
+      const productInfo = order.productInfo || "";
+      const qty = order.quantity || 1;
+      const matchedKPI = matchProductKPI(productInfo, source);
+      
+      searchPeriodStats[source].count += 1;
+      searchPeriodStats[source].quantity += qty;
+      searchPeriodStats[source].basePrice += Number(order.basePrice) || 0;
+      const orderShippingFee = SHIPPING_FEE_EXCLUDE_PARTNERS.includes(source) ? 0 : DEFAULT_SHIPPING_FEE;
+      searchPeriodStats[source].shippingFee += orderShippingFee;
+      
+      // 상세 내역용 변수
+      let orderSupplyPrice = 0;
+      let orderCost = 0;
+      let orderCommission = 0;
+      let matchedKPIName: string | null = null;
+      let displayQuantity = qty;  // 표시할 수량 (KPI 설정 반영)
+      
+      if (matchedKPI) {
+        matchedKPIName = matchedKPI.name;
+        // KPI에서 정의한 수량으로 표시
+        displayQuantity = matchedKPI.kpiUnitCount * qty;
+        
+        if (matchedKPI.kpiCountEnabled) {
+          searchPeriodStats[source].countForKPI += matchedKPI.kpiUnitCount * qty;
+        }
+        // kpiCountEnabled가 false면 건수에서 완전히 제외
+        if (matchedKPI.kpiSalesEnabled) {
+          searchPeriodStats[source].basePriceForKPI += Number(order.basePrice) || 0;
+        }
+        const supplyPrice = matchedKPI.kpiSupplyPrice ?? matchedKPI.unitPrice;
+        const totalSupplyPrice = supplyPrice * qty;
+        orderSupplyPrice = totalSupplyPrice;
+        searchPeriodStats[source].supplyPriceTotal += totalSupplyPrice;
+        const costPrice = matchedKPI.kpiCostPrice ?? 0;
+        orderCost = costPrice * qty;
+        searchPeriodStats[source].costTotal += orderCost;
+        const commissionRate = matchedKPI.kpiCommissionRate ?? 0.02585;
+        orderCommission = totalSupplyPrice * commissionRate;
+        searchPeriodStats[source].commissionTotal += orderCommission;
+      } else {
+        searchPeriodStats[source].countForKPI += 1;
+        searchPeriodStats[source].basePriceForKPI += Number(order.basePrice) || 0;
+        const basePrice = Number(order.basePrice) || 0;
+        orderSupplyPrice = basePrice;
+        searchPeriodStats[source].supplyPriceTotal += basePrice;
+        orderCommission = basePrice * 0.02585;
+        searchPeriodStats[source].commissionTotal += orderCommission;
+      }
+      
+      // 상세 내역 추가
+      // 공급가액은 이미 부가세 제외 금액이므로 그대로 사용
+      const supplyPriceExVat = orderSupplyPrice;
+      
+      // 커스텀 항목 계산 (기타비용1, 기타비용2 등) - 개별 항목 상세 포함
+      let orderCustomDeductionsTotal = 0;
+      const orderCustomDeductionsDetails: { id: string; label: string; value: number; operator: string }[] = [];
+      customDeductions.forEach(d => {
+        let value = 0;
+        if (d.valueType === "fixed") {
+          value = (d.fixedValue || 0) * qty;  // 고정값 × 수량
+        } else if (d.valueType === "rate" && d.rate) {
+          value = supplyPriceExVat * d.rate;  // 공급가 × 비율
+        }
+        const operator = d.operator || "subtract";
+        if (operator === "add") {
+          orderCustomDeductionsTotal -= value;
+        } else {
+          orderCustomDeductionsTotal += value;
+        }
+        orderCustomDeductionsDetails.push({
+          id: d.id,
+          label: d.label,
+          value: Math.round(value),
+          operator: operator,
+        });
+      });
+      
+      const orderMargin = supplyPriceExVat - orderCost - orderShippingFee - orderCommission - orderCustomDeductionsTotal;
+      
+      searchPeriodOrderDetails.push({
+        id: order.id,
+        orderSource: source,
+        customerName: order.customerName || "-",
+        productInfo: productInfo.substring(0, 50) + (productInfo.length > 50 ? "..." : ""),
+        quantity: displayQuantity,  // KPI 설정 반영된 수량 사용
+        basePrice: Number(order.basePrice) || 0,
+        matchedKPI: matchedKPIName,
+        supplyPrice: Math.round(orderSupplyPrice),
+        supplyPriceExVat: Math.round(supplyPriceExVat),
+        cost: Math.round(orderCost),
+        shippingFee: orderShippingFee,
+        commission: Math.round(orderCommission),
+        customDeductions: orderCustomDeductionsDetails,
+        margin: Math.round(orderMargin),
+      });
     });
 
     // =====================================================
@@ -246,12 +498,13 @@ export async function GET(request: Request) {
       monthStats[source].count += 1;
       monthStats[source].quantity += qty;
       monthStats[source].basePrice += Number(order.basePrice) || 0;
-      monthStats[source].shippingFee += Number(order.shippingFee) || 0;
+      monthStats[source].shippingFee += SHIPPING_FEE_EXCLUDE_PARTNERS.includes(source) ? 0 : DEFAULT_SHIPPING_FEE; // 마진 설정에서 배송비 가져옴
       
       if (matchedKPI) {
         if (matchedKPI.kpiCountEnabled) {
           monthStats[source].countForKPI += matchedKPI.kpiUnitCount * qty;
         }
+        // kpiCountEnabled가 false면 건수에서 완전히 제외
         if (matchedKPI.kpiSalesEnabled) {
           monthStats[source].basePriceForKPI += Number(order.basePrice) || 0;
         }
@@ -314,12 +567,13 @@ export async function GET(request: Request) {
       lastMonthStats[source].count += 1;
       lastMonthStats[source].quantity += qty;
       lastMonthStats[source].basePrice += Number(order.basePrice) || 0;
-      lastMonthStats[source].shippingFee += Number(order.shippingFee) || 0;
+      lastMonthStats[source].shippingFee += SHIPPING_FEE_EXCLUDE_PARTNERS.includes(source) ? 0 : DEFAULT_SHIPPING_FEE; // 마진 설정에서 배송비 가져옴
       
       if (matchedKPI) {
         if (matchedKPI.kpiCountEnabled) {
           lastMonthStats[source].countForKPI += matchedKPI.kpiUnitCount * qty;
         }
+        // kpiCountEnabled가 false면 건수에서 완전히 제외
         if (matchedKPI.kpiSalesEnabled) {
           lastMonthStats[source].basePriceForKPI += Number(order.basePrice) || 0;
         }
@@ -390,12 +644,13 @@ export async function GET(request: Request) {
       yearStats[source].count += 1;
       yearStats[source].quantity += qty;
       yearStats[source].basePrice += Number(order.basePrice) || 0;
-      yearStats[source].shippingFee += Number(order.shippingFee) || 0;
+      yearStats[source].shippingFee += SHIPPING_FEE_EXCLUDE_PARTNERS.includes(source) ? 0 : DEFAULT_SHIPPING_FEE; // 마진 설정에서 배송비 가져옴
       
       if (matchedKPI) {
         if (matchedKPI.kpiCountEnabled) {
           yearStats[source].countForKPI += matchedKPI.kpiUnitCount * qty;
         }
+        // kpiCountEnabled가 false면 건수에서 완전히 제외
         if (matchedKPI.kpiSalesEnabled) {
           yearStats[source].basePriceForKPI += Number(order.basePrice) || 0;
         }
@@ -435,13 +690,17 @@ export async function GET(request: Request) {
     const buildPartnerData = (stats: Record<string, PartnerStats>) => {
       return PARTNERS.map(partner => {
         const s = stats[partner];
-        const vat = Math.round(s.supplyPriceTotal * DEFAULT_VAT_RATE);
+        // 공급가액은 이미 부가세 제외 금액
+        const supplyPriceExcludingVAT = s.supplyPriceTotal;
+        const vat = Math.round(supplyPriceExcludingVAT * DEFAULT_VAT_RATE);
         // 수수료는 상품별로 이미 계산되어 commissionTotal에 누적됨
         const commission = Math.round(s.commissionTotal);
-        // 부가세 제외 공급가액 = 공급가 / 1.1
-        const supplyPriceExcludingVAT = s.supplyPriceTotal / 1.1;
-        // 마진 = 공급가(부가세 제외) - 원가 - 배송비 - 수수료
-        const margin = supplyPriceExcludingVAT - s.costTotal - s.shippingFee - s.commissionTotal;
+        
+        // 커스텀 항목 계산 (협력사별 총 수량 기준)
+        const customDeductionsTotal = calculateCustomDeductions(s.supplyPriceTotal, s.quantity, partner);
+        
+        // 마진 = 공급가(부가세 제외) - 원가 - 배송비 - 수수료 - 커스텀항목
+        const margin = supplyPriceExcludingVAT - s.costTotal - s.shippingFee - s.commissionTotal - customDeductionsTotal;
         
         return {
           partner,
@@ -456,6 +715,7 @@ export async function GET(request: Request) {
           vat,
           totalWithVat: Math.round(s.supplyPriceTotal + vat),
           commission,
+          customDeductions: Math.round(customDeductionsTotal),  // 커스텀 항목 합계 추가
           margin: Math.round(margin),
         };
       });
@@ -474,6 +734,7 @@ export async function GET(request: Request) {
         totalWithVat: partnerData.reduce((sum, d) => sum + d.totalWithVat, 0),
         cost: partnerData.reduce((sum, d) => sum + d.cost, 0),
         commission: partnerData.reduce((sum, d) => sum + d.commission, 0),
+        customDeductions: partnerData.reduce((sum, d) => sum + (d.customDeductions || 0), 0),
         margin: partnerData.reduce((sum, d) => sum + d.margin, 0),
       };
     };
@@ -485,6 +746,10 @@ export async function GET(request: Request) {
     // 선택 기간 통계
     const selectedData = buildPartnerData(selectedStats);
     const selectedTotals = buildTotals(selectedData);
+
+    // 검색기간 상세 통계 (마진 크로스체킹용)
+    const searchPeriodData = buildPartnerData(searchPeriodStats);
+    const searchPeriodTotals = buildTotals(searchPeriodData);
 
     // 1일~현재 (이번 달 누계)
     const monthData = buildPartnerData(monthStats);
@@ -511,6 +776,12 @@ export async function GET(request: Request) {
         selected: {
           byPartner: selectedData,
           totals: selectedTotals,
+        },
+        // 검색기간 마진 상세 (크로스체킹용)
+        searchPeriodMargin: {
+          byPartner: searchPeriodData,
+          totals: searchPeriodTotals,
+          details: searchPeriodOrderDetails,
         },
         // 1일~현재 (이번 달 누계)
         monthToDate: {
@@ -542,8 +813,16 @@ export async function GET(request: Request) {
         priceInfo: {
           vatRate: DEFAULT_VAT_RATE,
           commissionRate: DEFAULT_COMMISSION_RATE,
-          defaultCommissionRate: 0.02585,  // 기본 수수료율 2.585%
+          defaultCommissionRate: DEFAULT_COMMISSION_RATE_VALUE,  // 마진 설정에서 가져온 수수료율
+          defaultShippingFee: DEFAULT_SHIPPING_FEE,  // 마진 설정에서 가져온 배송비
         },
+        // 마진 설정 정보
+        marginConfig: marginConfig ? {
+          name: marginConfig.name,
+          description: marginConfig.description,
+          formula: marginConfig.formula,
+          updatedAt: marginConfig.updatedAt,
+        } : null,
       },
     });
   } catch (error) {

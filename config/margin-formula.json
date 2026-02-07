@@ -1,0 +1,55 @@
+{
+  "version": 8,
+  "name": "기본 마진 공식",
+  "description": "마진 = 공급가 - 원가 - 배송비 - 수수료",
+  "formula": {
+    "base": "supplyPrice",
+    "vatExclude": false,
+    "vatRate": 0.1,
+    "deductions": [
+      {
+        "id": "cost",
+        "type": "cost",
+        "enabled": true,
+        "label": "원가",
+        "description": "상품별 KPI 설정의 원가 사용",
+        "valueType": "kpi",
+        "fixedValue": 0
+      },
+      {
+        "id": "shippingFee",
+        "type": "shippingFee",
+        "enabled": true,
+        "label": "배송비",
+        "description": "건당 배송비 (로켓그로스 제외)",
+        "valueType": "kpi",
+        "fixedValue": 3000,
+        "excludePartners": [
+          "로켓그로스"
+        ]
+      },
+      {
+        "id": "commission",
+        "type": "commission",
+        "enabled": true,
+        "label": "수수료",
+        "description": "공급가 대비 수수료율",
+        "valueType": "kpi",
+        "rate": 0.02,
+        "fixedValue": 0
+      },
+      {
+        "id": "custom2",
+        "type": "custom",
+        "enabled": false,
+        "label": "기타비용2",
+        "description": "추가 비용 항목",
+        "valueType": "rate",
+        "rate": 0,
+        "fixedValue": 0
+      }
+    ]
+  },
+  "updatedAt": "2026-02-05T05:59:24.530Z",
+  "updatedBy": "admin"
+}
